@@ -9,6 +9,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.11
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.11
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.96.4
+	github.com/dchest/uniuri v1.2.0
 	github.com/dotenv-org/godotenvvault v0.6.0
 	github.com/gin-contrib/zap v1.1.6
 	github.com/gin-gonic/gin v1.12.0
