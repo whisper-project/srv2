@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -9,31 +9,74 @@ package platform
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/dotenv-org/godotenvvault"
 )
 
 type Environment struct {
+	AgePublicKey     string
+	AgeSecretKey     string
+	AwsAccessKey     string
+	AwsBucket        string
 	Name             string
 	AblyPublishKey   string
+	AwsReportFolder  string
+	AwsRegion        string
+	AwsSecretKey     string
 	AblySubscribeKey string
-	DbUrl            string
 	DbKeyPrefix      string
+	DbUrl            string
+	HttpHost         string
+	HttpPort         int
+	HttpScheme       string
+	Name             string
+	SmtpCredId       string
+	SmtpCredSecret   string
+	SmtpHost         string
+	SmtpPort         int
 }
 
 //goland:noinspection SpellCheckingInspection
 var (
 	ciConfig = Environment{
 		Name:             "CI",
+		AgePublicKey:     "age1kq7jnct8jv0d2hr7u3vpf6804emfqwptz6svy9mc9nv7pnkzqc5qsm4wrz",
+		AgeSecretKey:     "AGE-SECRET-KEY-1H30T40KMX70VYEHM2ATF9N02U6KRL46660EFPU8GT76DAJNZN6EQRU7CGA",
 		AblyPublishKey:   "xVLyHw.DGYdkQ:FtPUNIourpYSoZAIbeon0p_rJGtb5vO1j2OIzP3GMX8",
+		HttpScheme:       "http",
+		HttpHost:         "localhost",
+		SmtpHost:         "localhost",
+		HttpPort:         8080,
+		SmtpPort:         2500,
+		SmtpCredSecret:   "",
 		AblySubscribeKey: "xVLyHw.DGYdkQ:FtPUNIourpYSoZAIbeon0p_rJGtb5vO1j2OIzP3GMX8",
+		SmtpCredId:       "",
 		DbUrl:            "redis://",
 		DbKeyPrefix:      "c:",
 	}
-	loadedConfig = ciConfig
-	configStack  []Environment
+	loadedConfig        = ciConfig
+	configStack         []Environment
+	configChangeActions = make(map[string]func())
 )
+
+func RegisterForConfigChange(name string, action func()) {
+	if _, ok := configChangeActions[name]; ok {
+		panic(`Duplicate action registration for "` + name + `"`)
+	}
+	configChangeActions[name] = action
+}
+
+func UnregisterForConfigChange(name string) {
+	delete(configChangeActions, name)
+}
+
+func runConfigChangeActions() {
+	for _, action := range configChangeActions {
+		action()
+	}
+}
 
 func GetConfig() Environment {
 	return loadedConfig
@@ -64,11 +107,13 @@ func PushConfig(name string) error {
 func PushAlteredConfig(env Environment) {
 	configStack = append(configStack, loadedConfig)
 	loadedConfig = env
+	runConfigChangeActions()
 }
 
 func pushCiConfig() error {
 	configStack = append(configStack, loadedConfig)
 	loadedConfig = ciConfig
+	runConfigChangeActions()
 	return nil
 }
 
@@ -99,13 +144,39 @@ func pushEnvConfig(filename string) error {
 		return fmt.Errorf("error loading .env vars: %v", err)
 	}
 	configStack = append(configStack, loadedConfig)
+	getEnvPort := func(s string, d int) int {
+		val, _ := strconv.Atoi(s)
+		if val <= 0 {
+			return d
+		} else {
+			return val
+		}
+	}
 	loadedConfig = Environment{
+		AgePublicKey:     os.Getenv("AGE_PUBLIC_KEY"),
+		AgeSecretKey:     os.Getenv("AGE_SECRET_KEY"),
+		AwsAccessKey:     os.Getenv("AWS_ACCESS_KEY"),
+		AwsBucket:        os.Getenv("AWS_BUCKET"),
+		AwsReportFolder:  os.Getenv("AWS_REPORT_FOLDER"),
 		Name:             os.Getenv("ENVIRONMENT_NAME"),
 		AblyPublishKey:   os.Getenv("ABLY_PUBLISH_KEY"),
 		AblySubscribeKey: os.Getenv("ABLY_SUBSCRIBE_KEY"),
+		AwsRegion:        os.Getenv("AWS_REGION"),
+		AwsSecretKey:     os.Getenv("AWS_SECRET_KEY"),
+		DbKeyPrefix:      os.Getenv("DB_KEY_PREFIX"),
+		DbUrl:            os.Getenv("REDIS_URL"),
+		HttpHost:         os.Getenv("HTTP_HOST"),
+		HttpPort:         getEnvPort(os.Getenv("HTTP_PORT"), 8080),
+		HttpScheme:       os.Getenv("HTTP_SCHEME"),
+		Name:             os.Getenv("ENVIRONMENT_NAME"),
+		SmtpCredId:       os.Getenv("SMTP_CRED_ID"),
 		DbUrl:            os.Getenv("REDIS_URL"),
 		DbKeyPrefix:      os.Getenv("DB_KEY_PREFIX"),
+		SmtpCredSecret:   os.Getenv("SMTP_CRED_SECRET"),
+		SmtpHost:         os.Getenv("SMTP_HOST"),
+		SmtpPort:         getEnvPort(os.Getenv("SMTP_PORT"), 2025),
 	}
+	runConfigChangeActions()
 	return nil
 }
 
@@ -115,6 +186,7 @@ func PopConfig() {
 	}
 	loadedConfig = configStack[len(configStack)-1]
 	configStack = configStack[:len(configStack)-1]
+	runConfigChangeActions()
 	return
 }
 
@@ -133,5 +205,5 @@ func FindEnvFile(name string, fallback bool) (string, error) {
 			}
 		}
 	}
-	return "", fmt.Errorf("no file %q found in path", name)
+	return "", fmt.Errorf("no file %q found in parent", name)
 }

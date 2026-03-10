@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -8,6 +8,8 @@ package platform
 
 import (
 	"os"
+	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/go-test/deep"
@@ -85,7 +87,7 @@ func TestMultiPushPopConfig(t *testing.T) {
 	}
 	configC := GetConfig()
 	if configC.DbKeyPrefix != "c:" {
-		t.Errorf("Initial config prefix is wrong: %q", configC.DbKeyPrefix)
+		t.Errorf("Initial DbKeyPrefix is wrong: %q", configC.DbKeyPrefix)
 	}
 	if err := PushConfig("development"); err != nil {
 		t.Fatalf("failed to push development config: %v", err)
@@ -95,7 +97,7 @@ func TestMultiPushPopConfig(t *testing.T) {
 		t.Errorf("Configs before and after dev push are the same")
 	}
 	if configD.DbKeyPrefix != "d:" {
-		t.Errorf("Prefix after dev push is wrong: %q", configD.DbKeyPrefix)
+		t.Errorf("Prefix after push of dev config is wrong: %q", configD.DbKeyPrefix)
 	}
 	if err := PushConfig("staging"); err != nil {
 		t.Fatalf("failed to push staging config: %v", err)
@@ -120,12 +122,12 @@ func TestMultiPushPopConfig(t *testing.T) {
 		t.Errorf("Configs before and after prod push are the same")
 	}
 	if configP.DbKeyPrefix != "p:" {
-		t.Errorf("Prefix after prod push is wrong: %q", configP.DbKeyPrefix)
+		t.Errorf("Prefix after push of prod config is wrong: %q", configP.DbKeyPrefix)
 	}
 	PopConfig()
 	configD3 := GetConfig()
 	if configD3 != configD2 {
-		t.Errorf("Dev config before and after second pop are different")
+		t.Errorf("Environments before and after the second push/pop are different")
 	}
 	PopConfig()
 	configT2 := GetConfig()
@@ -177,7 +179,7 @@ func TestPushVaultConfig(t *testing.T) {
 		t.Fatalf("Failed to get after directory: %v", err)
 	}
 	if n != o {
-		t.Errorf("Directory after (%s) not same as directory before (%s) push", n, o)
+		t.Errorf("the directory after (%s) is different from the directory before (%s) push", n, o)
 	}
 	encryptedConfig := GetConfig()
 	if diff := deep.Equal(prodConfig, encryptedConfig); diff != nil {
@@ -190,16 +192,17 @@ func TestFindEnvFile(t *testing.T) {
 		t.Errorf("Initial configuration is not the CI configuration")
 	}
 	if _, err := FindEnvFile(".env.no-such-environment-file", false); err == nil {
-		t.Errorf("Didn't err when file didn't exist in parent")
+		t.Errorf("Didn't err when the env file didn't exist in a parent directory")
 	}
 	if _, err := FindEnvFile(".env.no-such-environment-file", true); err != nil {
-		t.Errorf("Didn't find fallback when file didn't exist in parent")
+		t.Errorf("Didn't find fallback when the env file didn't exist in a parent directory")
 	}
 	if d, err := FindEnvFile(".env.vault", false); err != nil {
-		t.Errorf("Didn't find .env.vault in parent")
+		t.Errorf("Didn't find .env.vault in a parent directory")
 	} else {
-		if d != "../../" {
-			t.Errorf("Found .env.vault in wrong parent")
+		if _, err := os.Stat(path.Join(d, "go.mod")); err != nil {
+			p, _ := filepath.Abs(d)
+			t.Errorf("Found .env.vault in a parent that doesn't have a 'go.mod' file: %s", p)
 		}
 	}
 }
@@ -207,11 +210,11 @@ func TestFindEnvFile(t *testing.T) {
 func TestFindVaultLocally(t *testing.T) {
 	c, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("Failed to get working directory: %v", err)
+		t.Fatalf("Failed to get the working directory: %v", err)
 	}
 	d, err := FindEnvFile(".env.vault", false)
 	if err != nil {
-		t.Fatalf("Didn't find .env.vault in parent")
+		t.Fatalf("Didn't find .env.vault in a parent directory")
 	}
 	if err = os.Chdir(d); err != nil {
 		t.Fatalf("Failed to chdir into parent dir: %v", err)
@@ -222,5 +225,39 @@ func TestFindVaultLocally(t *testing.T) {
 	defer PopConfig()
 	if err = os.Chdir(c); err != nil {
 		t.Fatalf("Failed to return to child directory: %v", err)
+	}
+}
+
+var configNameTestValue = "defaultConfigName"
+
+func TestConfigChangeActions(t *testing.T) {
+	RegisterForConfigChange("test", func() {
+		configNameTestValue = GetConfig().Name + "-test"
+	})
+	runConfigChangeActions()
+	if configNameTestValue == "defaultConfigName" {
+		t.Errorf("Initial config action failed: got %q, expected %q", "defaultConfigName", "CI-test")
+	}
+	first := configNameTestValue
+	for _, env := range []string{"CI", "test", "development", "staging", "production"} {
+		last := configNameTestValue
+		_ = PushConfig(env)
+		expected := GetConfig().Name + "-test"
+		if configNameTestValue != expected {
+			t.Errorf("Config action on push failed: got %q, expected %q", configNameTestValue, expected)
+		}
+		PopConfig()
+		if configNameTestValue != last {
+			t.Errorf("Config action on pop failed: got %q, expected %q", configNameTestValue, last)
+		}
+	}
+	if configNameTestValue != first {
+		t.Errorf("Push/Pop sequence last not first: got %q, expected %q", configNameTestValue, first)
+	}
+	configNameTestValue = "defaultConfigName"
+	UnregisterForConfigChange("test")
+	runConfigChangeActions()
+	if configNameTestValue != "defaultConfigName" {
+		t.Errorf("Unregistered config action ran: got %q, expected %q", configNameTestValue, "defaultConfigName")
 	}
 }
