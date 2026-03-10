@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/whisper-project/server.golang/api/console"
-	"github.com/whisper-project/server.golang/api/saywhat"
 	"github.com/whisper-project/server.golang/lifecycle"
 	"github.com/whisper-project/server.golang/platform"
 )
@@ -50,9 +49,6 @@ func serve(address, port string) {
 	if err != nil {
 		panic(err)
 	}
-	r.Static("/say-what", "./saywhat.js/dist")
-	sayWhat := r.Group("/api/say-what/v1")
-	saywhat.AddRoutes(sayWhat)
 	consoleClient := r.Group("/api/console/v0")
 	console.AddRoutes(consoleClient)
 	lifecycle.Startup(r, fmt.Sprintf("%s:%s", address, port))
