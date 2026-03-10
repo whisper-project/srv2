@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -17,8 +17,8 @@ import (
 
 func TestLaunchDataInterface(t *testing.T) {
 	clientId := uuid.NewString()
-	l := &LaunchData{ClientId: clientId}
-	var n *LaunchData
+	l := &ActivityData{ClientId: clientId}
+	var n *ActivityData
 	platform.StorableInterfaceTester(t, l, "launch-data:", clientId)
 	platform.StructPointerInterfaceTester(t, n, l, *l, "launch-data:", clientId)
 }
@@ -27,7 +27,7 @@ func TestNewLaunchData(t *testing.T) {
 	clientId := uuid.NewString()
 	profileId := uuid.NewString()
 	now := time.Now().UnixMilli()
-	l := NewLaunchData("test", clientId, profileId)
+	l := NewLaunchActivity("test", clientId, profileId)
 	if l.ClientType != "test" {
 		t.Errorf("NewLaunchData returned wrong client type. Got %s, Want %s", l.ClientType, "device")
 	}

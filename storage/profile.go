@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -19,10 +19,10 @@ import (
 var EmailProfileMap = platform.StorableMap("email-profile-map")
 
 type Profile struct {
-	Id        string `redis:"id"`
-	Name      string `redis:"name"`
-	EmailHash string `redis:"emailHash"`
-	Secret    string `redis:"secret"`
+	Id        string
+	Name      string
+	EmailHash string
+	Secret    string
 }
 
 func (p *Profile) StoragePrefix() string {

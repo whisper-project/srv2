@@ -1,7 +1,7 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
- * All the copyrighted work l this repository is licensed under the
- * GNU Affero General Public License v3, reproduced l the LICENSE file.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
+ * All the copyrighted work in this repository is licensed under the
+ * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
 
 package storage
@@ -67,23 +67,10 @@ func NewLaunchData(clientType, clientId, profileId string) *LaunchData {
 		ClientType: clientType,
 		ClientId:   clientId,
 		ProfileId:  profileId,
-		Start:      time.Now().UnixMilli(),
+		Activity:   "launch",
+		When:       time.Now().UnixMilli(),
 	}
-}
-
-type ClientWhisperConversations string
-
-func (c ClientWhisperConversations) StoragePrefix() string {
-	return "client-whisper-conversations:"
-}
-
-func (c ClientWhisperConversations) StorageId() string {
-	return string(c)
-}
-
-func ObserveClientLaunch(clientType, clientId, profileId string) {
-	l := NewLaunchData(clientType, clientId, profileId)
-	if err := platform.SaveFields(sCtx(), l); err != nil {
+	if err := platform.SaveObject(sCtx(), l); err != nil {
 		sLog().Error("save fields failure on client launch",
 			zap.String("clientType", clientType), zap.String("clientId", clientId),
 			zap.String("profileId", profileId), zap.Error(err))
@@ -91,7 +78,7 @@ func ObserveClientLaunch(clientType, clientId, profileId string) {
 }
 
 func ObserveClientShutdown(clientId string) {
-	l := &LaunchData{ClientId: clientId}
+	l := &ActivityData{ClientId: clientId}
 	if err := platform.LoadFields(sCtx(), l); err != nil {
 		sLog().Error("load fields failure on client shutdown",
 			zap.String("clientId", clientId), zap.Error(err))

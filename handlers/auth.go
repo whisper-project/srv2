@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -35,7 +35,7 @@ func AuthenticateRequest(c *gin.Context) *storage.Profile {
 	if authToken == "" {
 		middleware.CtxLog(c).Info("Profile exists, need authorization", zap.String("profileId", profileId))
 		c.Writer.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer realm="%s"`, profileId))
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Provide authorization token"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Provide an authorization token"})
 		return nil
 	} else if len(authToken) > len("Bearer ") {
 		authToken = authToken[len("Bearer "):]
