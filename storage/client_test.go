@@ -29,7 +29,7 @@ func TestActivityDataInterface(t *testing.T) {
 	platform.RedisValueTester(t, i, &o, func(l, r *ActivityData) bool { return l == r })
 }
 
-func TestClientActivity(t *testing.T) {
+func TestClientActivityMethods(t *testing.T) {
 	clientId := platform.NewId("test-client-")
 	profileId := platform.NewId("test-profile-")
 	now := time.Now().UnixMilli()

@@ -48,7 +48,7 @@ func StartListenSessionHandler(c *gin.Context) {
 	}
 	clientId := c.GetHeader("X-Client-Id")
 	conversationId := c.Param("conversationId")
-	isAllowed, err := storage.IsAllowedListener(p.Id, conversationId)
+	isAllowed, err := storage.IsAllowedListener(conversationId, p.Id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

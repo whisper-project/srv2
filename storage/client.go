@@ -54,6 +54,37 @@ func (a *ActivityData) FromRedis(b []byte) error {
 	return gob.NewDecoder(bytes.NewReader(b)).Decode(a)
 }
 
+// GetClientActivity returns the last activity recorded for a given clientId.
+func GetClientActivity(clientId string) (*ActivityData, error) {
+	a := &ActivityData{ClientId: clientId}
+	if err := platform.LoadObject(sCtx(), a); err != nil {
+		sLog().Error("storage failure (load) on ActivityData",
+			zap.String("clientId", clientId), zap.Error(err))
+		return nil, err
+	}
+	return a, nil
+}
+
+// SaveClientActivity saves the activity data for a given clientId.
+func SaveClientActivity(a *ActivityData) error {
+	if err := platform.SaveObject(sCtx(), a); err != nil {
+		sLog().Error("storage failure (save) on ActivityData",
+			zap.String("clientId", a.ClientId), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// DeleteClientActivity deletes the activity data for a given clientId.
+func DeleteClientActivity(clientId string) error {
+	if err := platform.DeleteStorage(sCtx(), &ActivityData{ClientId: clientId}); err != nil {
+		sLog().Error("storage failure (delete) on ActivityData",
+			zap.String("clientId", clientId), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
 // ObserveClientLaunch records a client launch
 //
 // Failures are logged but not returned because they don't affect the client.
@@ -67,11 +98,7 @@ func ObserveClientLaunch(clientType, clientId, profileId string) {
 		LastActivity: "launch",
 		LastTime:     now,
 	}
-	if err := platform.SaveObject(sCtx(), a); err != nil {
-		sLog().Error("save fields failure on client launch",
-			zap.String("clientType", clientType), zap.String("clientId", clientId),
-			zap.String("profileId", profileId), zap.Error(err))
-	}
+	_ = SaveClientActivity(a)
 }
 
 // ObserveClientActivity records the last request received
@@ -80,30 +107,11 @@ func ObserveClientLaunch(clientType, clientId, profileId string) {
 // Failures are logged but not returned because they don't affect the client.
 func ObserveClientActivity(clientId string, activity string) {
 	now := time.Now().UnixMilli()
-	a := &ActivityData{ClientId: clientId}
-	if err := platform.LoadObject(sCtx(), a); err != nil {
-		sLog().Error("load fields failure on client activity",
-			zap.String("clientId", clientId), zap.Error(err))
+	a, err := GetClientActivity(clientId)
+	if err != nil {
 		return
 	}
 	a.LastActivity = activity
 	a.LastTime = now
-	if err := platform.SaveObject(sCtx(), a); err != nil {
-		sLog().Error("save fields failure on client activity",
-			zap.String("clientId", clientId), zap.Error(err))
-	}
-}
-
-// GetClientActivity returns the last activity recorded for a given clientId.
-func GetClientActivity(clientId string) (*ActivityData, error) {
-	a := &ActivityData{ClientId: clientId}
-	if err := platform.LoadObject(sCtx(), a); err != nil {
-		return nil, err
-	}
-	return a, nil
-}
-
-// DeleteClientActivity deletes the activity data for a given clientId.
-func DeleteClientActivity(clientId string) error {
-	return platform.DeleteStorage(sCtx(), &ActivityData{ClientId: clientId})
+	_ = SaveClientActivity(a)
 }

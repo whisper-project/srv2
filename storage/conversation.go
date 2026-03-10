@@ -7,13 +7,12 @@
 package storage
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/gob"
 
 	"go.uber.org/zap"
 
 	"github.com/whisper-project/server.golang/platform"
-
-	"github.com/google/uuid"
 )
 
 type Conversation struct {
@@ -33,60 +32,71 @@ func (c *Conversation) StorageId() string {
 	return c.Id
 }
 
-func (c *Conversation) SetStorageId(id string) error {
-	if c == nil {
-		return fmt.Errorf("can't set id of nil %T", c)
+func (c *Conversation) ToRedis() ([]byte, error) {
+	var b bytes.Buffer
+	if err := gob.NewEncoder(&b).Encode(c); err != nil {
+		return nil, err
 	}
-	c.Id = id
-	return nil
+	return b.Bytes(), nil
 }
 
-func (c *Conversation) Copy() platform.StructPointer {
-	if c == nil {
-		return nil
-	}
-	n := new(Conversation)
-	*n = *c
-	return n
+func (c *Conversation) FromRedis(data []byte) error {
+	*c = Conversation{} // dump old data
+	return gob.NewDecoder(bytes.NewReader(data)).Decode(c)
 }
 
-func (c *Conversation) Downgrade(a any) (platform.StructPointer, error) {
-	if o, ok := a.(Conversation); ok {
-		return &o, nil
-	}
-	if o, ok := a.(*Conversation); ok {
-		return o, nil
-	}
-	return nil, fmt.Errorf("not a %T: %#v", c, a)
-}
-
+// NewConversation creates a new conversation with the given owner (profileId) and name.
 func NewConversation(owner, name string) *Conversation {
 	return &Conversation{
-		Id:    uuid.NewString(),
+		Id:    platform.NewId("convo-"),
 		Owner: owner,
 		Name:  name,
 	}
 }
 
-func IsOwnedConversation(profileId, conversationId string) (bool, error) {
-	var conversation Conversation
-	if conversationId == "" {
-		sLog().Info("Empty conversation id")
-		return false, nil
+// GetConversation returns the conversation with the given id.
+func GetConversation(id string) (*Conversation, error) {
+	c := &Conversation{Id: id}
+	if err := platform.LoadObject(sCtx(), c); err != nil {
+		sLog().Error("storage failure (load) on Conversation",
+			zap.String("id", id), zap.Error(err))
+		return nil, err
 	}
-	if err := platform.LoadFields(sCtx(), &conversation); err != nil {
-		sLog().Error("Load Fields failure on conversation retrieval",
-			zap.String("conversationId", conversation.Id), zap.Error(err))
-		return false, err
-	}
-	if conversation.Owner != profileId {
-		sLog().Info("Conversation owner mismatch",
-			zap.String("conversationId", conversation.Id), zap.String("profileId", profileId))
-		return false, nil
-	}
-	return true, nil
+	return c, nil
 }
 
+// SaveConversation saves the conversation with the given id.
+func SaveConversation(c *Conversation) error {
+	if err := platform.SaveObject(sCtx(), c); err != nil {
+		sLog().Error("storage failure (save) on Conversation",
+			zap.String("id", c.Id), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// DeleteConversation deletes the conversation with the given id.
+func DeleteConversation(id string) error {
+	if err := platform.DeleteStorage(sCtx(), &Conversation{Id: id}); err != nil {
+		sLog().Error("storage failure (delete) on Conversation",
+			zap.String("id", id), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// IsOwnedConversation checks if the user with the given profileId is the owner
+// of the conversation with the given conversationId.
+func IsOwnedConversation(profileId, conversationId string) (bool, error) {
+	c, err := GetConversation(conversationId)
+	if err != nil {
+		return false, err
+	}
+	return c.Owner == profileId, nil
+}
+
+// The AllowedListeners for the conversation with the given conversationId is
+// the set of profileIds for users accepted into that conversation.
 type AllowedListeners string
 
 func (a AllowedListeners) StoragePrefix() string {
@@ -97,24 +107,51 @@ func (a AllowedListeners) StorageId() string {
 	return string(a)
 }
 
-func MakeAllowedListener(profileId, conversationId string) error {
+// IsAllowedListener checks if the conversation with the given conversationId
+// has allowed the user with the given profileId as a listener.
+func IsAllowedListener(conversationId, profileId string) (bool, error) {
+	id := AllowedListeners(conversationId)
+	ok, err := platform.IsMember(sCtx(), id, profileId)
+	if err != nil {
+		sLog().Error("storage failure (lookup) on AllowedListeners",
+			zap.String("conversationId", conversationId), zap.Error(err))
+	}
+	return ok, err
+}
+
+// AddAllowedListener ensures that the conversation with the given conversationId
+// allows the user with the given profileId as a listener.
+func AddAllowedListener(conversationId, profileId string) error {
 	id := AllowedListeners(conversationId)
 	if err := platform.AddMembers(sCtx(), id, profileId); err != nil {
-		sLog().Error("storage failure adding allowed listener",
-			zap.String("conversationId", conversationId), zap.String("profileId", profileId),
-			zap.Error(err))
+		sLog().Error("storage failure (add) on AllowedListeners",
+			zap.String("conversationId", conversationId), zap.Error(err))
 		return err
 	}
 	return nil
 }
 
-func IsAllowedListener(profileId, conversationId string) (bool, error) {
+// RemoveAllowedListener ensures that the conversation with the given conversationId
+// does not allow the user with the given profileId as a listener.
+func RemoveAllowedListener(conversationId, profileId string) error {
 	id := AllowedListeners(conversationId)
-	ok, err := platform.IsMember(sCtx(), id, profileId)
-	if err != nil {
-		sLog().Error("storage failure retrieving allowed listener",
-			zap.String("conversationId", conversationId), zap.String("profileId", profileId),
-			zap.Error(err))
+	if err := platform.RemoveMembers(sCtx(), id, profileId); err != nil {
+		sLog().Error("storage failure (remove) on AllowedListeners",
+			zap.String("conversationId", conversationId), zap.Error(err))
+		return err
 	}
-	return ok, err
+	return nil
+}
+
+// ListAllowedListeners returns the list of profileIds for users
+// who are allowed to listen to the conversation with the given conversationId.
+func ListAllowedListeners(conversationId string) ([]string, error) {
+	id := AllowedListeners(conversationId)
+	list, err := platform.FetchMembers(sCtx(), id)
+	if err != nil {
+		sLog().Error("storage failure (fetch) on AllowedListeners",
+			zap.String("conversationId", conversationId), zap.Error(err))
+		return nil, err
+	}
+	return list, nil
 }
