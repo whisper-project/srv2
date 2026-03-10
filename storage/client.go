@@ -7,7 +7,8 @@
 package storage
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/gob"
 	"time"
 
 	"go.uber.org/zap"
@@ -15,78 +16,94 @@ import (
 	"github.com/whisper-project/server.golang/platform"
 )
 
-// LaunchData tracks the last launch of a client
-type LaunchData struct {
-	ClientType string `redis:"clientType"`
-	ClientId   string `redis:"clientId"`
-	ProfileId  string `redis:"profileId"`
-	Start      int64  `redis:"start"`
-	End        int64  `redis:"end"`
+// ActivityData tracks the attributes of a client
+// at the time of its most recent launch, and when
+// it last made a server request in that launch.
+//
+// Times are in epoch millis
+type ActivityData struct {
+	ClientId     string
+	ClientType   string
+	ProfileId    string
+	LaunchTime   int64
+	LastActivity string
+	LastTime     int64
 }
 
-func (l *LaunchData) StoragePrefix() string {
-	return "launch-data:"
+func (a *ActivityData) StoragePrefix() string {
+	return "activity-data:"
 }
 
-func (l *LaunchData) StorageId() string {
-	if l == nil {
+func (a *ActivityData) StorageId() string {
+	if a == nil {
 		return ""
 	}
-	return l.ClientId
+	return a.ClientId
 }
 
-func (l *LaunchData) SetStorageId(id string) error {
-	if l == nil {
-		return fmt.Errorf("can't set id of nil %T", l)
+func (a *ActivityData) ToRedis() ([]byte, error) {
+	var b bytes.Buffer
+	if err := gob.NewEncoder(&b).Encode(b); err != nil {
+		return nil, err
 	}
-	l.ClientId = id
-	return nil
+	return b.Bytes(), nil
 }
 
-func (l *LaunchData) Copy() platform.StructPointer {
-	if l == nil {
-		return nil
-	}
-	n := new(LaunchData)
-	*n = *l
-	return n
+func (a *ActivityData) FromRedis(b []byte) error {
+	*a = ActivityData{} // dump old data
+	return gob.NewDecoder(bytes.NewReader(b)).Decode(a)
 }
 
-func (l *LaunchData) Downgrade(a any) (platform.StructPointer, error) {
-	if o, ok := a.(LaunchData); ok {
-		return &o, nil
+// ObserveClientLaunch records a client launch
+//
+// Failures are logged but not returned because they don't affect the client.
+func ObserveClientLaunch(clientType, clientId, profileId string) {
+	now := time.Now().UnixMilli()
+	a := &ActivityData{
+		ClientType:   clientType,
+		ClientId:     clientId,
+		ProfileId:    profileId,
+		LaunchTime:   now,
+		LastActivity: "launch",
+		LastTime:     now,
 	}
-	if o, ok := a.(*LaunchData); ok {
-		return o, nil
-	}
-	return nil, fmt.Errorf("not a %T: %#v", l, a)
-}
-
-func NewLaunchData(clientType, clientId, profileId string) *LaunchData {
-	return &LaunchData{
-		ClientType: clientType,
-		ClientId:   clientId,
-		ProfileId:  profileId,
-		Activity:   "launch",
-		When:       time.Now().UnixMilli(),
-	}
-	if err := platform.SaveObject(sCtx(), l); err != nil {
+	if err := platform.SaveObject(sCtx(), a); err != nil {
 		sLog().Error("save fields failure on client launch",
 			zap.String("clientType", clientType), zap.String("clientId", clientId),
 			zap.String("profileId", profileId), zap.Error(err))
 	}
 }
 
-func ObserveClientShutdown(clientId string) {
-	l := &ActivityData{ClientId: clientId}
-	if err := platform.LoadFields(sCtx(), l); err != nil {
-		sLog().Error("load fields failure on client shutdown",
+// ObserveClientActivity records the last request received
+// from an already-launched client.
+//
+// Failures are logged but not returned because they don't affect the client.
+func ObserveClientActivity(clientId string, activity string) {
+	now := time.Now().UnixMilli()
+	a := &ActivityData{ClientId: clientId}
+	if err := platform.LoadObject(sCtx(), a); err != nil {
+		sLog().Error("load fields failure on client activity",
 			zap.String("clientId", clientId), zap.Error(err))
 		return
 	}
-	l.End = time.Now().UnixMilli()
-	if err := platform.SaveFields(sCtx(), l); err != nil {
-		sLog().Error("save fields failure on client shutdown",
+	a.LastActivity = activity
+	a.LastTime = now
+	if err := platform.SaveObject(sCtx(), a); err != nil {
+		sLog().Error("save fields failure on client activity",
 			zap.String("clientId", clientId), zap.Error(err))
 	}
+}
+
+// GetClientActivity returns the last activity recorded for a given clientId.
+func GetClientActivity(clientId string) (*ActivityData, error) {
+	a := &ActivityData{ClientId: clientId}
+	if err := platform.LoadObject(sCtx(), a); err != nil {
+		return nil, err
+	}
+	return a, nil
+}
+
+// DeleteClientActivity deletes the activity data for a given clientId.
+func DeleteClientActivity(clientId string) error {
+	return platform.DeleteStorage(sCtx(), &ActivityData{ClientId: clientId})
 }

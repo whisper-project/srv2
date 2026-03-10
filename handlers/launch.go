@@ -125,7 +125,7 @@ func GetShutdownHandler(c *gin.Context) {
 		return
 	}
 	clientId := c.GetHeader("X-Client-Id")
-	storage.ObserveClientShutdown(clientId)
+	storage.ObserveClientActivity(clientId, "shutdown")
 	c.Status(http.StatusNoContent)
 }
 
