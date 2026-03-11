@@ -43,7 +43,7 @@ func (a *ActivityData) StorageId() string {
 
 func (a *ActivityData) ToRedis() ([]byte, error) {
 	var b bytes.Buffer
-	if err := gob.NewEncoder(&b).Encode(b); err != nil {
+	if err := gob.NewEncoder(&b).Encode(a); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil

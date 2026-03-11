@@ -37,7 +37,7 @@ func PostLaunchHandler(c *gin.Context) {
 	if profileId == "" {
 		// The client doesn't know their profile; they are requesting it.
 		// So look for an existing profile that matches the email hash that was sent.
-		profileId, _ = storage.EmailProfile(emailHash)
+		profileId, _ = storage.GetEmailProfile(emailHash)
 		if profileId != "" {
 			// there's an existing profile, so the user needs to authenticate.
 			middleware.CtxLog(c).Info("Profile exists, need authentication",
@@ -47,7 +47,7 @@ func PostLaunchHandler(c *gin.Context) {
 			return
 		}
 		// there's no existing profile, so create one and return it
-		p, err := storage.NewLaunchProfile(clientType, emailHash, clientId)
+		p, err := storage.CreateNewUser(clientId, clientType, "", emailHash)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -59,7 +59,7 @@ func PostLaunchHandler(c *gin.Context) {
 		return
 	}
 	// make sure the client-supplied profile ID is real before responding
-	emailProfileId, err := storage.EmailProfile(emailHash)
+	emailProfileId, err := storage.GetEmailProfile(emailHash)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -67,7 +67,7 @@ func PostLaunchHandler(c *gin.Context) {
 	if emailProfileId != profileId {
 		middleware.CtxLog(c).Info("Profile for email doesn't match client-supplied profile",
 			zap.String("email profileId", emailProfileId), zap.String("client profileId", profileId))
-		c.JSON(http.StatusNotFound, gin.H{"error": "The supplied profile ID doesn't match the supplied email"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "No user found for the supplied information"})
 		return
 	}
 	// Check the user's authentication

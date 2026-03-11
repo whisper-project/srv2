@@ -57,7 +57,7 @@ func GetProfileWhisperConversationsHandler(c *gin.Context) {
 		return
 	}
 	profileId := c.GetHeader("X-Profile-Id")
-	cMap, err := storage.WhisperConversations(profileId)
+	cMap, err := storage.GetOwnedConversationsNameToIdMap(profileId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
@@ -82,7 +82,7 @@ func GetProfileWhisperConversationIdHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "empty whisper conversation name"})
 		return
 	}
-	conversationId, err := storage.WhisperConversation(profileId, name)
+	conversationId, err := storage.GetOwnedConversationIdByName(profileId, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
@@ -114,7 +114,7 @@ func PostProfileWhisperConversationHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "empty whisper conversation name"})
 		return
 	}
-	id, err := storage.WhisperConversation(profileId, name)
+	id, err := storage.GetOwnedConversationIdByName(profileId, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
@@ -125,7 +125,7 @@ func PostProfileWhisperConversationHandler(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"status": "error", "error": "whisper conversation already exists"})
 		return
 	}
-	conversationId, err := storage.AddWhisperConversation(profileId, name)
+	conversationId, err := storage.CreateNewOwnedConversation(profileId, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
@@ -147,7 +147,7 @@ func DeleteProfileWhisperConversationHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "empty whisper conversation name"})
 		return
 	}
-	conversationId, err := storage.WhisperConversation(profileId, name)
+	conversationId, err := storage.GetOwnedConversationIdByName(profileId, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
@@ -159,7 +159,7 @@ func DeleteProfileWhisperConversationHandler(c *gin.Context) {
 			gin.H{"status": "error", "error": fmt.Sprintf("whisper conversation %q not found", name)})
 		return
 	}
-	if err := storage.DeleteWhisperConversation(profileId, name); err != nil {
+	if err := storage.DeleteOwnedConversation(profileId, name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
 	}
