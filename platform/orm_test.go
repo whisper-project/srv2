@@ -23,7 +23,7 @@ import (
 
 var ormTestString StorableString = "ormTestString"
 
-func TestStorableStringInterfaceDefinition(t *testing.T) {
+func TestStorableStringInterface(t *testing.T) {
 	RedisKeyTester(t, ormTestString, "string:", "ormTestString")
 }
 
@@ -73,7 +73,7 @@ func TestExpireAtString(t *testing.T) {
 
 var ormTestSet StorableSet = "ormTestSet"
 
-func TestStorableSetInterfaceDefinition(t *testing.T) {
+func TestStorableSetInterface(t *testing.T) {
 	RedisKeyTester(t, ormTestSet, "set:", "ormTestSet")
 }
 
@@ -126,7 +126,7 @@ func TestAddFetchIsRemoveMembers(t *testing.T) {
 
 var ormTestSortedSet StorableSortedSet = "ormTestSortedSet"
 
-func TestStorableSortedSetInterfaceDefinition(t *testing.T) {
+func TestStorableSortedSetInterface(t *testing.T) {
 	RedisKeyTester(t, ormTestSortedSet, "zset:", "ormTestSortedSet")
 }
 
@@ -178,7 +178,7 @@ var (
 	ormTestList2 StorableList = "ormTestList2"
 )
 
-func TestStorableListInterfaceDefinition(t *testing.T) {
+func TestStorableListInterface(t *testing.T) {
 	RedisKeyTester(t, ormTestList, "list:", "ormTestList")
 }
 
@@ -290,7 +290,7 @@ func TestMoveRange(t *testing.T) {
 
 var ormTestMap StorableMap = "ormTestMap"
 
-func TestStorableMapInterfaceDefinition(t *testing.T) {
+func TestStorableMapInterface(t *testing.T) {
 	RedisKeyTester(t, ormTestMap, "map:", "ormTestMap")
 }
 
@@ -375,7 +375,7 @@ func (data *OrmTestStruct) FromRedis(b []byte) error {
 	return gob.NewDecoder(bytes.NewReader(b)).Decode(data)
 }
 
-func TestOrmTesterInterfaceDefinition(t *testing.T) {
+func TestOrmTesterInterface(t *testing.T) {
 	v1 := OrmTestStruct{IdField: "v1", CreateDate: time.Now()}
 	v2 := OrmTestStruct{IdField: "v2"}
 	RedisKeyTester(t, &v1, "ormTestPrefix:", "v1")
