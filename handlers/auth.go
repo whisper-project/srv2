@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -12,9 +12,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/whisper-project/server.golang/middleware"
-	"github.com/whisper-project/server.golang/platform"
-	"github.com/whisper-project/server.golang/storage"
+	"github.com/whisper-project/srv2/middleware"
+	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/srv2/storage"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -35,7 +35,7 @@ func AuthenticateRequest(c *gin.Context) *storage.Profile {
 	if authToken == "" {
 		middleware.CtxLog(c).Info("Profile exists, need authorization", zap.String("profileId", profileId))
 		c.Writer.Header().Set("WWW-Authenticate", fmt.Sprintf(`Bearer realm="%s"`, profileId))
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Provide authorization token"})
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Provide an authorization token"})
 		return nil
 	} else if len(authToken) > len("Bearer ") {
 		authToken = authToken[len("Bearer "):]
@@ -44,15 +44,11 @@ func AuthenticateRequest(c *gin.Context) *storage.Profile {
 		c.JSON(http.StatusForbidden, gin.H{"error": "invalid bearer token"})
 		return nil
 	}
-	p := &storage.Profile{Id: profileId}
-	if err := platform.LoadFields(c.Request.Context(), p); err != nil {
-		if errors.Is(err, platform.StructPointerNotFoundError) {
-			middleware.CtxLog(c).Info("no profile found for authentication",
-				zap.String("profileId", profileId))
+	p, err := storage.GetProfile(profileId)
+	if err != nil {
+		if errors.Is(err, platform.NotFoundError) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "profile not found"})
 		} else {
-			middleware.CtxLog(c).Error("Load Fields failure during authentication",
-				zap.String("profileId", profileId), zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "database failure"})
 		}
 		return nil

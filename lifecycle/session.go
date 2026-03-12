@@ -1,5 +1,5 @@
 /*
- * Copyright 2024-2025 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -16,13 +16,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/whisper-project/server.golang/speech"
+	"github.com/whisper-project/srv2/speech"
 
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/server.golang/protocol"
-	"github.com/whisper-project/server.golang/pubsub"
-	"github.com/whisper-project/server.golang/storage"
+	"github.com/whisper-project/srv2/protocol"
+	"github.com/whisper-project/srv2/pubsub"
+	"github.com/whisper-project/srv2/storage"
 )
 
 var (
@@ -72,7 +72,7 @@ func GetSession(conversationId string) (*Session, error) {
 	if s, ok := sessions[conversationId]; ok {
 		return s, nil
 	}
-	state, err := storage.SuspendedSessionState(conversationId)
+	state, err := storage.LoadSessionState(conversationId)
 	if err != nil {
 		sLog().Error("session get suspended state failure",
 			zap.String("sessionId", conversationId), zap.Error(err))
@@ -122,7 +122,7 @@ func ShutdownAllSessions(notify chan int) {
 	}
 	for done := 0; done < count; done++ {
 		id := <-completed
-		if err := storage.SuspendSession(id); err != nil {
+		if err := storage.AddSuspendedSession(id); err != nil {
 			sLog().Error("suspend session failure", zap.String("sessionId", id), zap.Error(err))
 		}
 	}
@@ -175,7 +175,7 @@ func (s *Session) Shutdown(notify chan string) {
 		if err := s.Pubsub.EndSession(s.Id); err != nil {
 			sLog().Error("ably session end failure", zap.String("sessionId", s.Id), zap.Error(err))
 		}
-		if err := storage.SuspendSessionState(s.state); err != nil {
+		if err := storage.SaveSessionState(s.state); err != nil {
 			sLog().Error("session suspend failure", zap.String("sessionId", s.Id), zap.Error(err))
 		}
 		notify <- s.Id
@@ -396,7 +396,7 @@ func (s *Session) transcribeContent(ctx context.Context) {
 			if s.shuttingDown {
 				slog.Info("saving live packets at shutdown", zap.String("sessionId", s.Id))
 				if len(s.livePackets) > 0 {
-					if err := storage.SuspendSessionPackets(s.Id, s.livePackets...); err != nil {
+					if err := storage.SaveSuspendedSessionPackets(s.Id, s.livePackets...); err != nil {
 						sLog().Error("error saving suspended packets",
 							zap.String("sessionId", s.Id), zap.Error(err))
 					}
@@ -408,7 +408,7 @@ func (s *Session) transcribeContent(ctx context.Context) {
 			if s.shuttingDown {
 				// if we're shutting down, leave all packets for the next server
 				s.livePackets = append(s.livePackets, packet)
-				if err := storage.SuspendSessionPackets(s.Id, s.livePackets...); err != nil {
+				if err := storage.SaveSuspendedSessionPackets(s.Id, s.livePackets...); err != nil {
 					sLog().Error("error saving suspended packets",
 						zap.String("sessionId", s.Id), zap.Error(err))
 				} else {
@@ -430,7 +430,7 @@ func (s *Session) transcribeContent(ctx context.Context) {
 }
 
 func (s *Session) processSuspendedPackets() (packetIds map[string]bool) {
-	packets, err := storage.SuspendedSessionPackets(s.Id)
+	packets, err := storage.LoadSuspendedSessionPackets(s.Id)
 	if err != nil {
 		sLog().Error("session get suspended packets failure",
 			zap.String("sessionId", s.Id), zap.Error(err))
@@ -481,8 +481,8 @@ func (s *Session) saveTranscript() error {
 	if s.liveText != "" {
 		lines = append(lines, storage.PastTextLine{time.Now().UnixMilli(), s.liveText})
 	}
-	t := storage.NewTranscript(s.transcriptId, s.state)
-	if err := storage.StoreTranscript(t); err != nil {
+	t := storage.CreateSessionTranscript(s.transcriptId, s.state)
+	if err := storage.SaveTranscript(t); err != nil {
 		sLog().Error("transcript save failure",
 			zap.String("sessionId", s.Id), zap.String("transcriptId", s.transcriptId),
 			zap.Error(err))

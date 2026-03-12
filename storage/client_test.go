@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -7,45 +7,68 @@
 package storage
 
 import (
+	"errors"
 	"testing"
 	"time"
 
-	"github.com/whisper-project/server.golang/platform"
-
-	"github.com/google/uuid"
+	"github.com/whisper-project/srv2/platform"
 )
 
-func TestLaunchDataInterface(t *testing.T) {
-	clientId := uuid.NewString()
-	l := &LaunchData{ClientId: clientId}
-	var n *LaunchData
-	platform.StorableInterfaceTester(t, l, "launch-data:", clientId)
-	platform.StructPointerInterfaceTester(t, n, l, *l, "launch-data:", clientId)
+func TestActivityDataInterface(t *testing.T) {
+	clientId := platform.NewId("test-client-")
+	i := &ActivityData{
+		ClientId:     clientId,
+		ClientType:   "test",
+		ProfileId:    "test-profile",
+		LaunchTime:   3,
+		LastActivity: "test-activity",
+		LastTime:     4,
+	}
+	var o ActivityData
+	platform.RedisKeyTester(t, i, "activity-data:", clientId)
+	platform.RedisValueTester(t, i, &o, func(l, r *ActivityData) bool { return l == r })
 }
 
-func TestNewLaunchData(t *testing.T) {
-	clientId := uuid.NewString()
-	profileId := uuid.NewString()
+func TestClientActivityMethods(t *testing.T) {
+	clientId := platform.NewId("test-client-")
+	profileId := platform.NewId("test-profile-")
 	now := time.Now().UnixMilli()
-	l := NewLaunchData("test", clientId, profileId)
-	if l.ClientType != "test" {
-		t.Errorf("NewLaunchData returned wrong client type. Got %s, Want %s", l.ClientType, "device")
+	ObserveClientLaunch("test", clientId, profileId)
+	a1, err := GetClientActivity(clientId)
+	if err != nil {
+		t.Fatalf("GetClientActivity failed: %v", err)
 	}
-	if l.ClientId != clientId {
-		t.Errorf("NewLaunchData returned wrong client id. Got %s, Want %s", l.ClientId, clientId)
+	if a1.ClientType != "test" {
+		t.Errorf("Got the wrong client type. Got %s, Want %s", a1.ClientType, "test")
 	}
-	if l.ProfileId != profileId {
-		t.Errorf("NewLaunchData returned wrong profile id. Got %s, Want %s", l.ProfileId, profileId)
+	if a1.ProfileId != profileId {
+		t.Errorf("Got the wrong profile id. Got %s, Want %s", a1.ProfileId, profileId)
 	}
-	if now > l.Start {
-		t.Errorf("NewLaunchData returned an early start. Got %v, Want no later than %v", l.Start, now)
+	if a1.LaunchTime <= now {
+		t.Errorf("Got an early start. Got %v, Want no earlier than %v", a1.LaunchTime, now)
 	}
-	if l.End != 0 {
-		t.Errorf("NewLaunchData returned the wrong end. Got %v, want 0", l.End)
+	if a1.LastActivity != "launch" {
+		t.Errorf("Got the wrong last activity. Got %s, Want %s", a1.LastActivity, "launch")
 	}
-}
-
-func TestClientWhisperConversationsInterface(t *testing.T) {
-	clientId := uuid.NewString()
-	platform.StorableInterfaceTester(t, ClientWhisperConversations(clientId), "client-whisper-conversations:", clientId)
+	if a1.LastTime != a1.LaunchTime {
+		t.Errorf("Got the wrong last time. Got %v, Want %v", a1.LastTime, a1.LaunchTime)
+	}
+	ObserveClientActivity(clientId, "shutdown")
+	a2, err := GetClientActivity(clientId)
+	if err != nil {
+		t.Fatalf("GetClientActivity failed: %v", err)
+	}
+	if a2.LastActivity != "shutdown" {
+		t.Errorf("Got the wrong last activity. Got %s, Want %s", a2.LastActivity, "shutdown")
+	}
+	if a2.LastTime <= a1.LastTime {
+		t.Errorf("Got the wrong last time. Got %v, Want no earlier than %v", a2.LastTime, a1.LastTime)
+	}
+	if DeleteClientActivity(clientId) != nil {
+		t.Errorf("DeleteClientActivity failed: %v", err)
+	}
+	_, err = GetClientActivity(clientId)
+	if !errors.Is(err, platform.NotFoundError) {
+		t.Errorf("Got the wrong error. Got %v, Want %v", err, "not found")
+	}
 }

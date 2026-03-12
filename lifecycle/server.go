@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -16,9 +16,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/server.golang/middleware"
-	"github.com/whisper-project/server.golang/platform"
-	"github.com/whisper-project/server.golang/storage"
+	"github.com/whisper-project/srv2/middleware"
+	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/srv2/storage"
 )
 
 // Startup takes a configured router and runs a server instance with it as handler.

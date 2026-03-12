@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -10,9 +10,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/whisper-project/server.golang/middleware"
-	"github.com/whisper-project/server.golang/platform"
-	"github.com/whisper-project/server.golang/storage"
+	"github.com/whisper-project/srv2/middleware"
+	"github.com/whisper-project/srv2/storage"
 
 	"go.uber.org/zap"
 
@@ -40,7 +39,7 @@ func PatchProfileHandler(c *gin.Context) {
 		updated = true
 	}
 	if updated {
-		if err := platform.SaveFields(c.Request.Context(), p); err != nil {
+		if err := storage.SaveProfile(p); err != nil {
 			middleware.CtxLog(c).Info("Can't save fields on profile patch",
 				zap.String("profileId", p.Id), zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -57,7 +56,7 @@ func GetProfileWhisperConversationsHandler(c *gin.Context) {
 		return
 	}
 	profileId := c.GetHeader("X-Profile-Id")
-	cMap, err := storage.WhisperConversations(profileId)
+	cMap, err := storage.GetOwnedConversationsNameToIdMap(profileId)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
@@ -82,7 +81,7 @@ func GetProfileWhisperConversationIdHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "empty whisper conversation name"})
 		return
 	}
-	conversationId, err := storage.WhisperConversation(profileId, name)
+	conversationId, err := storage.GetOwnedConversationIdByName(profileId, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
@@ -114,7 +113,7 @@ func PostProfileWhisperConversationHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "empty whisper conversation name"})
 		return
 	}
-	id, err := storage.WhisperConversation(profileId, name)
+	id, err := storage.GetOwnedConversationIdByName(profileId, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
@@ -125,15 +124,15 @@ func PostProfileWhisperConversationHandler(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"status": "error", "error": "whisper conversation already exists"})
 		return
 	}
-	conversationId, err := storage.AddWhisperConversation(profileId, name)
+	convo, err := storage.CreateNewOwnedConversation(profileId, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
 	}
 	middleware.CtxLog(c).Info("created whisper conversation",
 		zap.String("profileId", profileId), zap.String("clientId", c.GetHeader("X-Client-Id")),
-		zap.String("name", c.Param("name")), zap.String("conversationId", conversationId))
-	c.JSON(http.StatusCreated, conversationId)
+		zap.String("name", c.Param("name")), zap.String("conversationId", convo.Id))
+	c.JSON(http.StatusCreated, convo)
 }
 
 func DeleteProfileWhisperConversationHandler(c *gin.Context) {
@@ -147,7 +146,7 @@ func DeleteProfileWhisperConversationHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "error": "empty whisper conversation name"})
 		return
 	}
-	conversationId, err := storage.WhisperConversation(profileId, name)
+	conversationId, err := storage.GetOwnedConversationIdByName(profileId, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
@@ -159,7 +158,7 @@ func DeleteProfileWhisperConversationHandler(c *gin.Context) {
 			gin.H{"status": "error", "error": fmt.Sprintf("whisper conversation %q not found", name)})
 		return
 	}
-	if err := storage.DeleteWhisperConversation(profileId, name); err != nil {
+	if err := storage.DeleteOwnedConversation(profileId, name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
 	}

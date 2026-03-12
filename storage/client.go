@@ -1,105 +1,117 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
- * All the copyrighted work l this repository is licensed under the
- * GNU Affero General Public License v3, reproduced l the LICENSE file.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
+ * All the copyrighted work in this repository is licensed under the
+ * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
 
 package storage
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/gob"
 	"time"
 
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/server.golang/platform"
+	"github.com/whisper-project/srv2/platform"
 )
 
-// LaunchData tracks the last launch of a client
-type LaunchData struct {
-	ClientType string `redis:"clientType"`
-	ClientId   string `redis:"clientId"`
-	ProfileId  string `redis:"profileId"`
-	Start      int64  `redis:"start"`
-	End        int64  `redis:"end"`
+// ActivityData tracks the attributes of a client
+// at the time of its most recent launch, and when
+// it last made a server request in that launch.
+//
+// Times are in epoch millis
+type ActivityData struct {
+	ClientId     string
+	ClientType   string
+	ProfileId    string
+	LaunchTime   int64
+	LastActivity string
+	LastTime     int64
 }
 
-func (l *LaunchData) StoragePrefix() string {
-	return "launch-data:"
+func (a *ActivityData) StoragePrefix() string {
+	return "activity-data:"
 }
 
-func (l *LaunchData) StorageId() string {
-	if l == nil {
+func (a *ActivityData) StorageId() string {
+	if a == nil {
 		return ""
 	}
-	return l.ClientId
+	return a.ClientId
 }
 
-func (l *LaunchData) SetStorageId(id string) error {
-	if l == nil {
-		return fmt.Errorf("can't set id of nil %T", l)
+func (a *ActivityData) ToRedis() ([]byte, error) {
+	var b bytes.Buffer
+	if err := gob.NewEncoder(&b).Encode(a); err != nil {
+		return nil, err
 	}
-	l.ClientId = id
+	return b.Bytes(), nil
+}
+
+func (a *ActivityData) FromRedis(b []byte) error {
+	*a = ActivityData{} // dump old data
+	return gob.NewDecoder(bytes.NewReader(b)).Decode(a)
+}
+
+// GetClientActivity returns the last activity recorded for a given clientId.
+func GetClientActivity(clientId string) (*ActivityData, error) {
+	a := &ActivityData{ClientId: clientId}
+	if err := platform.FetchObject(sCtx(), a); err != nil {
+		sLog().Error("storage failure (load) on ActivityData",
+			zap.String("clientId", clientId), zap.Error(err))
+		return nil, err
+	}
+	return a, nil
+}
+
+// SaveClientActivity saves the activity data for a given clientId.
+func SaveClientActivity(a *ActivityData) error {
+	if err := platform.StoreObject(sCtx(), a); err != nil {
+		sLog().Error("storage failure (save) on ActivityData",
+			zap.String("clientId", a.ClientId), zap.Error(err))
+		return err
+	}
 	return nil
 }
 
-func (l *LaunchData) Copy() platform.StructPointer {
-	if l == nil {
-		return nil
-	}
-	n := new(LaunchData)
-	*n = *l
-	return n
-}
-
-func (l *LaunchData) Downgrade(a any) (platform.StructPointer, error) {
-	if o, ok := a.(LaunchData); ok {
-		return &o, nil
-	}
-	if o, ok := a.(*LaunchData); ok {
-		return o, nil
-	}
-	return nil, fmt.Errorf("not a %T: %#v", l, a)
-}
-
-func NewLaunchData(clientType, clientId, profileId string) *LaunchData {
-	return &LaunchData{
-		ClientType: clientType,
-		ClientId:   clientId,
-		ProfileId:  profileId,
-		Start:      time.Now().UnixMilli(),
-	}
-}
-
-type ClientWhisperConversations string
-
-func (c ClientWhisperConversations) StoragePrefix() string {
-	return "client-whisper-conversations:"
-}
-
-func (c ClientWhisperConversations) StorageId() string {
-	return string(c)
-}
-
-func ObserveClientLaunch(clientType, clientId, profileId string) {
-	l := NewLaunchData(clientType, clientId, profileId)
-	if err := platform.SaveFields(sCtx(), l); err != nil {
-		sLog().Error("save fields failure on client launch",
-			zap.String("clientType", clientType), zap.String("clientId", clientId),
-			zap.String("profileId", profileId), zap.Error(err))
-	}
-}
-
-func ObserveClientShutdown(clientId string) {
-	l := &LaunchData{ClientId: clientId}
-	if err := platform.LoadFields(sCtx(), l); err != nil {
-		sLog().Error("load fields failure on client shutdown",
+// DeleteClientActivity deletes the activity data for a given clientId.
+func DeleteClientActivity(clientId string) error {
+	if err := platform.DeleteStorage(sCtx(), &ActivityData{ClientId: clientId}); err != nil {
+		sLog().Error("storage failure (delete) on ActivityData",
 			zap.String("clientId", clientId), zap.Error(err))
+		return err
+	}
+	return nil
+}
+
+// ObserveClientLaunch records a client launch
+//
+// Failures are logged but not returned because they don't affect the client.
+func ObserveClientLaunch(clientType, clientId, profileId string) {
+	now := time.Now().UnixMilli()
+	a := &ActivityData{
+		ClientType:   clientType,
+		ClientId:     clientId,
+		ProfileId:    profileId,
+		LaunchTime:   now,
+		LastActivity: "launch",
+		LastTime:     now,
+	}
+	_ = SaveClientActivity(a)
+}
+
+// ObserveClientActivity records the last request received
+// from an already-launched client.
+//
+// Failures are logged but not returned because they don't affect the client.
+func ObserveClientActivity(clientId string, activity string) {
+	now := time.Now().UnixMilli()
+	a, err := GetClientActivity(clientId)
+	if err != nil {
 		return
 	}
-	l.End = time.Now().UnixMilli()
-	if err := platform.SaveFields(sCtx(), l); err != nil {
-		sLog().Error("save fields failure on client shutdown",
-			zap.String("clientId", clientId), zap.Error(err))
-	}
+	a.LastActivity = activity
+	a.LastTime = now
+	_ = SaveClientActivity(a)
 }

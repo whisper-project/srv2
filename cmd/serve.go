@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -12,10 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/whisper-project/server.golang/api/console"
-	"github.com/whisper-project/server.golang/api/saywhat"
-	"github.com/whisper-project/server.golang/lifecycle"
-	"github.com/whisper-project/server.golang/platform"
+	"github.com/whisper-project/srv2/api/console"
+	"github.com/whisper-project/srv2/lifecycle"
+	"github.com/whisper-project/srv2/platform"
 )
 
 // serveCmd represents the serve command
@@ -50,9 +49,6 @@ func serve(address, port string) {
 	if err != nil {
 		panic(err)
 	}
-	r.Static("/say-what", "./saywhat.js/dist")
-	sayWhat := r.Group("/api/say-what/v1")
-	saywhat.AddRoutes(sayWhat)
 	consoleClient := r.Group("/api/console/v0")
 	console.AddRoutes(consoleClient)
 	lifecycle.Startup(r, fmt.Sprintf("%s:%s", address, port))

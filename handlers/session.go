@@ -1,5 +1,5 @@
 /*
- * Copyright 2025 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2025-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -10,8 +10,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/whisper-project/server.golang/lifecycle"
-	"github.com/whisper-project/server.golang/storage"
+	"github.com/whisper-project/srv2/lifecycle"
+	"github.com/whisper-project/srv2/storage"
 )
 
 func StartWhisperSessionHandler(c *gin.Context) {
@@ -48,7 +48,7 @@ func StartListenSessionHandler(c *gin.Context) {
 	}
 	clientId := c.GetHeader("X-Client-Id")
 	conversationId := c.Param("conversationId")
-	isAllowed, err := storage.IsAllowedListener(p.Id, conversationId)
+	isAllowed, err := storage.IsAllowedListener(conversationId, p.Id)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

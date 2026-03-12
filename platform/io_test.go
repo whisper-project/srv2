@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -75,7 +75,7 @@ func TestBOMAwareCSVReader(t *testing.T) {
 	s := "世界"
 	u8 := "世界\n"
 	u8Bytes := []byte(u8)
-	reader := BOMAwareCSVReader(bytes.NewReader(u8Bytes))
+	reader := BOMAwareCsvReader(bytes.NewReader(u8Bytes))
 	row, err := reader.Read()
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestBOMAwareCSVReader(t *testing.T) {
 		t.Errorf("col should be %q but is %q", s, row[0])
 	}
 	u8Bom := append([]byte{0xEF, 0xBB, 0xBF}, u8Bytes...)
-	reader = BOMAwareCSVReader(bytes.NewReader(u8Bom))
+	reader = BOMAwareCsvReader(bytes.NewReader(u8Bom))
 	row, err = reader.Read()
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestBOMAwareCSVReader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reader = BOMAwareCSVReader(bytes.NewReader(b))
+	reader = BOMAwareCsvReader(bytes.NewReader(b))
 	row, err = reader.Read()
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func TestBOMAwareCSVReader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reader = BOMAwareCSVReader(bytes.NewReader(b))
+	reader = BOMAwareCsvReader(bytes.NewReader(b))
 	row, err = reader.Read()
 	if err != nil {
 		t.Fatal(err)

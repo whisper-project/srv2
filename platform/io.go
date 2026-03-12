@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -71,19 +71,18 @@ func UnmarshalStoredObjects[T any](template T, ms []json.RawMessage) ([]any, err
 	for _, js := range ms {
 		if err := json.Unmarshal(js, &template); err != nil {
 			return nil, err
-		} else {
-			objs = append(objs, template)
 		}
+		objs = append(objs, template)
 	}
 	return objs, nil
 }
 
-// BOMAwareCSVReader will detect a UTF BOM (Byte Order Mark) at the
+// BOMAwareCsvReader will detect a UTF BOM (Byte Order Mark) at the
 // start of the data and transform to UTF8 accordingly.
 // If there is no BOM, it will read the data without any transformation.
 //
-// This code taken from [this StackOverflow answer](https://stackoverflow.com/a/76023436/558006).
-func BOMAwareCSVReader(reader io.Reader) *csv.Reader {
+// This code is taken from [this StackOverflow answer](https://stackoverflow.com/a/76023436/558006).
+func BOMAwareCsvReader(reader io.Reader) *csv.Reader {
 	transformer := unicode.BOMOverride(encoding.Nop.NewDecoder())
 	return csv.NewReader(transform.NewReader(reader, transformer))
 }

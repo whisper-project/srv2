@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -11,21 +11,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/whisper-project/server.golang/protocol"
+	"github.com/whisper-project/srv2/protocol"
 
 	"github.com/go-test/deep"
 
-	"github.com/whisper-project/server.golang/platform"
-
-	"github.com/google/uuid"
+	"github.com/whisper-project/srv2/platform"
 )
 
-func TestSuspendedSessionInterfaceDefinition(t *testing.T) {
-	id := uuid.NewString()
-	platform.StorableInterfaceTester(t, suspendedSession(id), "suspended-session-state:", id)
+func TestSessionStateInterface(t *testing.T) {
+	id := platform.NewId("test-session-state-")
+	s := newSampleSessionState(id)
+	var n SessionState
+	platform.RedisKeyTester(t, s, "session-state:", id)
+	platform.RedisValueTester(t, s, &n, func(l, r *SessionState) bool { return deep.Equal(l, r) == nil })
 }
 
-func sampleSessionState(id string) *SessionState {
+func newSampleSessionState(id string) *SessionState {
 	s := NewSessionState(id)
 	start := time.Now().UnixMilli() - 50000
 	s.StartedAt = start
@@ -47,43 +48,45 @@ func sampleSessionState(id string) *SessionState {
 }
 
 func TestSessionStateResumeSuspendResumeResume(t *testing.T) {
-	id := uuid.NewString()
-	s0, err := SuspendedSessionState(id)
+	id := platform.NewId("test-session-state-")
+	s0, err := LoadSessionState(id)
 	if s0 != nil || err != nil {
-		t.Fatalf("expected nil state, got %v, %v", s0, err)
+		t.Fatalf("expected nil state, got %v, err %v", s0, err)
 	}
-	s1 := NewSessionState(id)
-	if err = SuspendSessionState(s1); err != nil {
+	s1 := newSampleSessionState(id)
+	if err = SaveSessionState(s1); err != nil {
 		t.Fatalf("store of new suspended state failed: %v", err)
 	}
-	s0, err = SuspendedSessionState(id)
+	s0, err = LoadSessionState(id)
 	if err != nil {
 		t.Fatalf("fetch of new suspended state failed: %v", err)
 	}
 	if diff := deep.Equal(s1, s0); diff != nil {
 		t.Errorf("suspended state mismatch: %v", diff)
 	}
-	if s1, err = SuspendedSessionState(id); err != nil || s1 != nil {
+	if s1, err = LoadSessionState(id); err != nil || s1 != nil {
 		t.Fatalf("repeated fetch of suspended state succeeded")
 	}
 }
 
 func TestSuspendedSessionPacketsInterface(t *testing.T) {
-	platform.StorableInterfaceTester(t, suspendedSessionPackets("test"), "suspended-packets:", "test")
+	platform.RedisKeyTester(t, SuspendedSessionPackets("test"), "suspended-packets:", "test")
 }
 
 func TestSessionPacketsResumeSuspendResume(t *testing.T) {
-	id := uuid.NewString()
-	//goland:noinspection GoStructInitializationWithoutFieldNames
+	id := platform.NewId("test-session-packets-")
+	if p0, err := LoadSuspendedSessionPackets(id); p0 != nil || err != nil {
+		t.Errorf("expected nil packets, got packets %v, err %v", p0, err)
+	}
 	packets := []protocol.ContentPacket{
 		{"a", "a", "a"},
 		{"b", "b", "b"},
 		{"c", "c", "c"},
 	}
-	if err := SuspendSessionPackets(id, packets...); err != nil {
+	if err := SaveSuspendedSessionPackets(id, packets...); err != nil {
 		t.Fatalf("store of new suspended packets failed: %v", err)
 	}
-	p2, err := SuspendedSessionPackets(id)
+	p2, err := LoadSuspendedSessionPackets(id)
 	if err != nil {
 		t.Fatalf("fetch of new suspended packets failed: %v", err)
 	}
@@ -93,29 +96,43 @@ func TestSessionPacketsResumeSuspendResume(t *testing.T) {
 	// expiration is tested elsewhere
 }
 
-func TestStoredTranscriptInterfaceDefinition(t *testing.T) {
-	id := uuid.NewString()
-	platform.StorableInterfaceTester(t, storedTranscript(id), "stored-transcript:", id)
+func TestTranscriptInterface(t *testing.T) {
+	id := platform.NewId("test-transcript-")
+	t1 := &Transcript{
+		Id:             id,
+		ConversationId: platform.NewId("test-conversation-"),
+		WhispererName:  "test-whisperer-name",
+		StartTime:      10000,
+		EndTime:        50000,
+		PastText: []PastTextLine{
+			{20000, "First line"},
+			{25000, "Second line"},
+			{30000, "Third line"},
+		},
+	}
+	var t2 Transcript
+	platform.RedisKeyTester(t, t1, "transcript:", id)
+	platform.RedisValueTester(t, t1, &t2, func(l, r *Transcript) bool { return deep.Equal(l, r) == nil })
 }
 
 func TestNewTranscriptFetchStoreFetch(t *testing.T) {
-	cId := uuid.NewString()
-	tId := uuid.NewString()
-	if transcript, err := StoredTranscript(tId); err != nil || transcript != nil {
-		t.Errorf("expected nil transcript, got %v, %v", transcript, err)
+	cId := platform.NewId("test-convo-")
+	tId := platform.NewId("test-transcript-")
+	if transcript, err := LoadTranscript(tId); err != nil || transcript != nil {
+		t.Errorf("expected nil transcript, got %v, err %v", transcript, err)
 	}
-	state := sampleSessionState(cId)
-	transcript := NewTranscript(tId, state)
+	state := newSampleSessionState(cId)
+	transcript := CreateSessionTranscript(tId, state)
 	if transcript.WhispererName != "name2" {
 		t.Errorf("Expected name to be 'name2', got '%s'", transcript.WhispererName)
 	}
 	if diff := deep.Equal(state.PastText, transcript.PastText); diff != nil {
 		t.Errorf("transcript mismatch: %v", diff)
 	}
-	if err := StoreTranscript(transcript); err != nil {
+	if err := SaveTranscript(transcript); err != nil {
 		t.Fatalf("store of new transcript failed: %v", err)
 	}
-	retrieved, err := StoredTranscript(tId)
+	retrieved, err := LoadTranscript(tId)
 	if err != nil {
 		t.Fatalf("fetch of stored transcript failed: %v", err)
 	}

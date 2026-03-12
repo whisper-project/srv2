@@ -1,12 +1,12 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
 
 package pubsub
 
-import "github.com/whisper-project/server.golang/protocol"
+import "github.com/whisper-project/srv2/protocol"
 
 type Manager = interface {
 	StartSession(sessionId string, cr protocol.ContentReceiver, sr StatusReceiver) error

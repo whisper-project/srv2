@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -34,9 +34,8 @@ func TestGetMultiDifferentDbs(t *testing.T) {
 	}
 	if dbD == nil || !strings.HasSuffix(prefixD, ":d:") {
 		t.Fatalf("GetDb didn't return dev db after push: %v, %q", dbD, prefixD)
-	} else {
-		// t.Logf("Pushed dev database is: %v, %q", dbD, prefixD)
 	}
+	// t.Logf("Pushed dev database is: %v, %q", dbD, prefixD)
 	if err := PushConfig("staging"); err != nil {
 		t.Fatalf("failed to push staging config: %v", err)
 	}
@@ -46,9 +45,8 @@ func TestGetMultiDifferentDbs(t *testing.T) {
 	}
 	if dbS == nil || !strings.HasSuffix(prefixS, ":s:") {
 		t.Fatalf("GetDb didn't return staging db after push: %v, %q", dbS, prefixS)
-	} else {
-		// t.Logf("Pushed staging database is: %v, %q", dbS, prefixS)
 	}
+	// t.Logf("Pushed staging database is: %v, %q", dbS, prefixS)
 	PopConfig()
 	dbD2, prefixD2 := GetDb()
 	if prefixD2 != prefixD {
@@ -66,9 +64,8 @@ func TestGetMultiDifferentDbs(t *testing.T) {
 	}
 	if dbP == nil || !strings.HasSuffix(prefixP, ":p:") {
 		t.Fatalf("GetDb didn't return prod db after push: %v, %q", dbP, prefixP)
-	} else {
-		// t.Logf("Pushed prod database is: %v, %q", dbP, prefixP)
 	}
+	// t.Logf("Pushed prod database is: %v, %q", dbP, prefixP)
 	PopConfig()
 	dbD3, prefixD3 := GetDb()
 	if prefixD3 != prefixD2 {

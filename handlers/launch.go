@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -12,9 +12,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/whisper-project/server.golang/middleware"
-	platform2 "github.com/whisper-project/server.golang/platform"
-	"github.com/whisper-project/server.golang/storage"
+	"github.com/whisper-project/srv2/middleware"
+	platform2 "github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/srv2/storage"
 
 	"gopkg.in/gomail.v2"
 
@@ -37,7 +37,7 @@ func PostLaunchHandler(c *gin.Context) {
 	if profileId == "" {
 		// The client doesn't know their profile; they are requesting it.
 		// So look for an existing profile that matches the email hash that was sent.
-		profileId, _ = storage.EmailProfile(emailHash)
+		profileId, _ = storage.GetEmailProfile(emailHash)
 		if profileId != "" {
 			// there's an existing profile, so the user needs to authenticate.
 			middleware.CtxLog(c).Info("Profile exists, need authentication",
@@ -47,7 +47,7 @@ func PostLaunchHandler(c *gin.Context) {
 			return
 		}
 		// there's no existing profile, so create one and return it
-		p, err := storage.NewLaunchProfile(clientType, emailHash, clientId)
+		p, err := storage.CreateNewUser(clientId, clientType, "", emailHash)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -59,7 +59,7 @@ func PostLaunchHandler(c *gin.Context) {
 		return
 	}
 	// make sure the client-supplied profile ID is real before responding
-	emailProfileId, err := storage.EmailProfile(emailHash)
+	emailProfileId, err := storage.GetEmailProfile(emailHash)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -67,7 +67,7 @@ func PostLaunchHandler(c *gin.Context) {
 	if emailProfileId != profileId {
 		middleware.CtxLog(c).Info("Profile for email doesn't match client-supplied profile",
 			zap.String("email profileId", emailProfileId), zap.String("client profileId", profileId))
-		c.JSON(http.StatusNotFound, gin.H{"error": "The supplied profile ID doesn't match the supplied email"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "No user found for the supplied information"})
 		return
 	}
 	// Check the user's authentication
@@ -86,8 +86,7 @@ func PostLaunchHandler(c *gin.Context) {
 
 func PostRequestEmailHandler(c *gin.Context) {
 	var email string
-	err := c.Bind(&email)
-	if err != nil || email == "" {
+	if err := c.Bind(&email); err != nil || email == "" {
 		middleware.CtxLog(c).Error("Invalid request for email", zap.String("email", email), zap.Error(err))
 		c.JSON(400, gin.H{"error": "Invalid request"})
 		return
@@ -95,7 +94,7 @@ func PostRequestEmailHandler(c *gin.Context) {
 	hash := platform2.MakeSha1(email)
 	// look for a profile that matches the email
 	ctx := c.Request.Context()
-	profileId, err := platform2.MapGet(ctx, storage.EmailProfileMap, hash)
+	profileId, err := platform2.GetMapValue(ctx, storage.EmailProfileMap, hash)
 	if err != nil {
 		middleware.CtxLog(c).Error("Map failure", zap.String("email", hash), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -108,12 +107,12 @@ func PostRequestEmailHandler(c *gin.Context) {
 		return
 	}
 	// otherwise, load the profile, and send email with password
-	p := &storage.Profile{Id: profileId}
-	if err := platform2.LoadFields(ctx, p); err != nil {
-		middleware.CtxLog(c).Error("Load Fields failure", zap.String("profileId", profileId), zap.Error(err))
+	p, err := storage.GetProfile(profileId)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	middleware.CtxLog(c).Info("Sending email", zap.String("profileId", p.Id), zap.String("password", p.Secret))
+	middleware.CtxLog(c).Info("Sending email", zap.String("profileId", profileId), zap.String("password", p.Secret))
 	if err := sendMail(email, p.Secret); err != nil {
 		middleware.CtxLog(c).Error("Send email failure", zap.String("profileId", p.Id), zap.Error(err))
 	}
@@ -125,7 +124,7 @@ func GetShutdownHandler(c *gin.Context) {
 		return
 	}
 	clientId := c.GetHeader("X-Client-Id")
-	storage.ObserveClientShutdown(clientId)
+	storage.ObserveClientActivity(clientId, "shutdown")
 	c.Status(http.StatusNoContent)
 }
 

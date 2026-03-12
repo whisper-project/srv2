@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/whisper-project/server.golang/platform"
-	"github.com/whisper-project/server.golang/protocol"
-	"github.com/whisper-project/server.golang/storage"
+	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/srv2/protocol"
+	"github.com/whisper-project/srv2/storage"
 
 	"github.com/ably/ably-go/ably"
 	"go.uber.org/zap"

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Daniel C. Brotsky. All rights reserved.
+ * Copyright 2024-2026 Daniel C. Brotsky. All rights reserved.
  * All the copyrighted work in this repository is licensed under the
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
@@ -15,8 +15,8 @@ import (
 
 var (
 	ServerId      = uuid.NewString()
-	ServerLogger  *zap.Logger
-	ServerContext context.Context = context.Background()
+	ServerLogger  = zap.NewNop()
+	ServerContext = context.Background()
 )
 
 func sLog() *zap.Logger {
