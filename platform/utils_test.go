@@ -9,6 +9,7 @@ package platform
 import (
 	"encoding/base64"
 	"encoding/hex"
+	"strings"
 	"testing"
 )
 
@@ -21,5 +22,21 @@ func TestMakeSha1(t *testing.T) {
 	computedSha1Base64 := MakeSha1("")
 	if computedSha1Base64 != emptySha1Base64 {
 		t.Errorf("computedSha1Base64 should be %q but is %q", emptySha1Base64, computedSha1Base64)
+	}
+}
+
+func TestNewId(t *testing.T) {
+	prefix := "test-prefix-"
+	id1 := NewId(prefix)
+	if !strings.HasPrefix(id1, prefix) {
+		t.Errorf("id1 should start with test-prefix-")
+	}
+	eLen := len(prefix) + 16
+	if len(id1) != eLen {
+		t.Errorf("id1 should have length %d, but is %d", eLen, len(id1))
+	}
+	id2 := NewId(prefix)
+	if id1 == id2 {
+		t.Errorf("id1 should not equal id2")
 	}
 }

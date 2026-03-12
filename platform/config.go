@@ -16,15 +16,15 @@ import (
 )
 
 type Environment struct {
+	AblyPublishKey   string
+	AblySubscribeKey string
 	AgePublicKey     string
 	AgeSecretKey     string
 	AwsAccessKey     string
 	AwsBucket        string
-	AblyPublishKey   string
-	AwsReportFolder  string
 	AwsRegion        string
+	AwsReportFolder  string
 	AwsSecretKey     string
-	AblySubscribeKey string
 	DbKeyPrefix      string
 	DbUrl            string
 	HttpHost         string
@@ -40,20 +40,20 @@ type Environment struct {
 //goland:noinspection SpellCheckingInspection
 var (
 	ciConfig = Environment{
-		Name:             "CI",
-		AgePublicKey:     "age1kq7jnct8jv0d2hr7u3vpf6804emfqwptz6svy9mc9nv7pnkzqc5qsm4wrz",
-		AgeSecretKey:     "AGE-SECRET-KEY-1H30T40KMX70VYEHM2ATF9N02U6KRL46660EFPU8GT76DAJNZN6EQRU7CGA",
 		AblyPublishKey:   "xVLyHw.DGYdkQ:FtPUNIourpYSoZAIbeon0p_rJGtb5vO1j2OIzP3GMX8",
-		HttpScheme:       "http",
-		HttpHost:         "localhost",
-		SmtpHost:         "localhost",
-		HttpPort:         8080,
-		SmtpPort:         2500,
-		SmtpCredSecret:   "",
 		AblySubscribeKey: "xVLyHw.DGYdkQ:FtPUNIourpYSoZAIbeon0p_rJGtb5vO1j2OIzP3GMX8",
-		SmtpCredId:       "",
-		DbUrl:            "redis://",
+		AgePublicKey:     "",
+		AgeSecretKey:     "",
 		DbKeyPrefix:      "c:",
+		DbUrl:            "redis://",
+		HttpHost:         "localhost",
+		HttpPort:         8080,
+		HttpScheme:       "http",
+		Name:             "CI",
+		SmtpCredId:       "",
+		SmtpCredSecret:   "",
+		SmtpHost:         "localhost",
+		SmtpPort:         2500,
 	}
 	loadedConfig        = ciConfig
 	configStack         []Environment

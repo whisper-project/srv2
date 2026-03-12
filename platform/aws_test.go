@@ -21,8 +21,12 @@ func TestS3PutGetListDeleteEncryptedBlob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer PopConfig()
 	blobName := uuid.NewString()
 	folderName := GetConfig().AwsReportFolder
+	if folderName == "" {
+		t.Skip("Skipping S3 test because no aws report folder has been set")
+	}
 	content := "This is a test. This is only a test."
 	inStream := strings.NewReader(content)
 	err = S3PutEncryptedBlob(context.Background(), folderName, blobName, inStream)

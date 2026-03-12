@@ -16,8 +16,9 @@ import (
 )
 
 func TestGetConfig(t *testing.T) {
-	if GetConfig() != ciConfig {
-		t.Errorf("Initial configuration is not the CI configuration")
+	config := GetConfig()
+	if config != ciConfig {
+		t.Errorf("Initial configuration is not the CI configuration: %v", deep.Equal(config, ciConfig))
 	}
 }
 
