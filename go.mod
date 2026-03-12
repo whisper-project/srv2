@@ -1,4 +1,4 @@
-module github.com/whisper-project/server.golang
+module github.com/whisper-project/srv2
 
 go 1.25.0
 

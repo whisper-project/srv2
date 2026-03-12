@@ -12,9 +12,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/whisper-project/server.golang/api/console"
-	"github.com/whisper-project/server.golang/lifecycle"
-	"github.com/whisper-project/server.golang/platform"
+	"github.com/whisper-project/srv2/api/console"
+	"github.com/whisper-project/srv2/lifecycle"
+	"github.com/whisper-project/srv2/platform"
 )
 
 // serveCmd represents the serve command

@@ -10,7 +10,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/whisper-project/server.golang/platform"
+	"github.com/whisper-project/srv2/platform"
 
 	"github.com/google/uuid"
 )

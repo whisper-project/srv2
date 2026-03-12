@@ -16,13 +16,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/whisper-project/server.golang/speech"
+	"github.com/whisper-project/srv2/speech"
 
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/server.golang/protocol"
-	"github.com/whisper-project/server.golang/pubsub"
-	"github.com/whisper-project/server.golang/storage"
+	"github.com/whisper-project/srv2/protocol"
+	"github.com/whisper-project/srv2/pubsub"
+	"github.com/whisper-project/srv2/storage"
 )
 
 var (

@@ -12,9 +12,9 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/whisper-project/server.golang/middleware"
-	platform2 "github.com/whisper-project/server.golang/platform"
-	"github.com/whisper-project/server.golang/storage"
+	"github.com/whisper-project/srv2/middleware"
+	platform2 "github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/srv2/storage"
 
 	"gopkg.in/gomail.v2"
 

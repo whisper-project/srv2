@@ -6,7 +6,7 @@
 
 package pubsub
 
-import "github.com/whisper-project/server.golang/protocol"
+import "github.com/whisper-project/srv2/protocol"
 
 type Manager = interface {
 	StartSession(sessionId string, cr protocol.ContentReceiver, sr StatusReceiver) error

@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/whisper-project/server.golang/protocol"
+	"github.com/whisper-project/srv2/protocol"
 
 	"github.com/go-test/deep"
 
-	"github.com/whisper-project/server.golang/platform"
+	"github.com/whisper-project/srv2/platform"
 )
 
 func TestSessionStateInterface(t *testing.T) {
