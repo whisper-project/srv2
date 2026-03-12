@@ -11,7 +11,6 @@ import (
 	"net/http"
 
 	"github.com/whisper-project/server.golang/middleware"
-	"github.com/whisper-project/server.golang/platform"
 	"github.com/whisper-project/server.golang/storage"
 
 	"go.uber.org/zap"
@@ -40,7 +39,7 @@ func PatchProfileHandler(c *gin.Context) {
 		updated = true
 	}
 	if updated {
-		if err := platform.SaveFields(c.Request.Context(), p); err != nil {
+		if err := storage.SaveProfile(p); err != nil {
 			middleware.CtxLog(c).Info("Can't save fields on profile patch",
 				zap.String("profileId", p.Id), zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -125,15 +124,15 @@ func PostProfileWhisperConversationHandler(c *gin.Context) {
 		c.JSON(http.StatusConflict, gin.H{"status": "error", "error": "whisper conversation already exists"})
 		return
 	}
-	conversationId, err := storage.CreateNewOwnedConversation(profileId, name)
+	convo, err := storage.CreateNewOwnedConversation(profileId, name)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "error": err.Error()})
 		return
 	}
 	middleware.CtxLog(c).Info("created whisper conversation",
 		zap.String("profileId", profileId), zap.String("clientId", c.GetHeader("X-Client-Id")),
-		zap.String("name", c.Param("name")), zap.String("conversationId", conversationId))
-	c.JSON(http.StatusCreated, conversationId)
+		zap.String("name", c.Param("name")), zap.String("conversationId", convo.Id))
+	c.JSON(http.StatusCreated, convo)
 }
 
 func DeleteProfileWhisperConversationHandler(c *gin.Context) {

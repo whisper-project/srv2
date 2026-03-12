@@ -14,9 +14,9 @@ import (
 )
 
 var (
-	ServerId                      = uuid.NewString()
-	ServerLogger  *zap.Logger     = zap.NewNop()
-	ServerContext context.Context = context.Background()
+	ServerId      = uuid.NewString()
+	ServerLogger  = zap.NewNop()
+	ServerContext = context.Background()
 )
 
 func sLog() *zap.Logger {

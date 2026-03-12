@@ -86,8 +86,7 @@ func PostLaunchHandler(c *gin.Context) {
 
 func PostRequestEmailHandler(c *gin.Context) {
 	var email string
-	err := c.Bind(&email)
-	if err != nil || email == "" {
+	if err := c.Bind(&email); err != nil || email == "" {
 		middleware.CtxLog(c).Error("Invalid request for email", zap.String("email", email), zap.Error(err))
 		c.JSON(400, gin.H{"error": "Invalid request"})
 		return
@@ -108,12 +107,12 @@ func PostRequestEmailHandler(c *gin.Context) {
 		return
 	}
 	// otherwise, load the profile, and send email with password
-	p := &storage.Profile{Id: profileId}
-	if err := platform2.LoadFields(ctx, p); err != nil {
-		middleware.CtxLog(c).Error("Load Fields failure", zap.String("profileId", profileId), zap.Error(err))
+	p, err := storage.GetProfile(profileId)
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
-	middleware.CtxLog(c).Info("Sending email", zap.String("profileId", p.Id), zap.String("password", p.Secret))
+	middleware.CtxLog(c).Info("Sending email", zap.String("profileId", profileId), zap.String("password", p.Secret))
 	if err := sendMail(email, p.Secret); err != nil {
 		middleware.CtxLog(c).Error("Send email failure", zap.String("profileId", p.Id), zap.Error(err))
 	}

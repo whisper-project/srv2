@@ -451,7 +451,7 @@ func TestSaveMapDeleteOrmTester(t *testing.T) {
 			}
 		}
 		if err := DeleteStorage(ctx, &loaded); err != nil {
-			return fmt.Errorf("lailed to delete stored data for %q: %v", loaded.IdField, err)
+			return fmt.Errorf("failed to delete stored data for %q: %v", loaded.IdField, err)
 		}
 		return nil
 	}

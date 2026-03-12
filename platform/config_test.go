@@ -32,7 +32,7 @@ func TestPushAlteredConfig(t *testing.T) {
 	PopConfig()
 	env2 := GetConfig()
 	if diff := deep.Equal(env, env2); diff == nil {
-		t.Errorf("Popped configuration is the altered conifiguration")
+		t.Errorf("Popped configuration is the altered configuration")
 	}
 	if env2 != ciConfig {
 		t.Errorf("Popped configuration is not the original configuration")
@@ -152,7 +152,7 @@ func TestPushPopPopTestConfig(t *testing.T) {
 	}
 	PopConfig()
 	if GetConfig() != ciConfig {
-		t.Errorf("Overpopped configuration is not the CI configuration")
+		t.Errorf("Over-popped configuration is not the CI configuration")
 	}
 }
 

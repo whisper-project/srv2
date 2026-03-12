@@ -44,15 +44,11 @@ func AuthenticateRequest(c *gin.Context) *storage.Profile {
 		c.JSON(http.StatusForbidden, gin.H{"error": "invalid bearer token"})
 		return nil
 	}
-	p := &storage.Profile{Id: profileId}
-	if err := platform.LoadFields(c.Request.Context(), p); err != nil {
-		if errors.Is(err, platform.StructPointerNotFoundError) {
-			middleware.CtxLog(c).Info("no profile found for authentication",
-				zap.String("profileId", profileId))
+	p, err := storage.GetProfile(profileId)
+	if err != nil {
+		if errors.Is(err, platform.NotFoundError) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "profile not found"})
 		} else {
-			middleware.CtxLog(c).Error("Load Fields failure during authentication",
-				zap.String("profileId", profileId), zap.Error(err))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "database failure"})
 		}
 		return nil

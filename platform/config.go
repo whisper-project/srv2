@@ -20,7 +20,6 @@ type Environment struct {
 	AgeSecretKey     string
 	AwsAccessKey     string
 	AwsBucket        string
-	Name             string
 	AblyPublishKey   string
 	AwsReportFolder  string
 	AwsRegion        string
@@ -148,20 +147,18 @@ func pushEnvConfig(filename string) error {
 		val, _ := strconv.Atoi(s)
 		if val <= 0 {
 			return d
-		} else {
-			return val
 		}
+		return val
 	}
 	loadedConfig = Environment{
+		AblyPublishKey:   os.Getenv("ABLY_PUBLISH_KEY"),
+		AblySubscribeKey: os.Getenv("ABLY_SUBSCRIBE_KEY"),
 		AgePublicKey:     os.Getenv("AGE_PUBLIC_KEY"),
 		AgeSecretKey:     os.Getenv("AGE_SECRET_KEY"),
 		AwsAccessKey:     os.Getenv("AWS_ACCESS_KEY"),
 		AwsBucket:        os.Getenv("AWS_BUCKET"),
-		AwsReportFolder:  os.Getenv("AWS_REPORT_FOLDER"),
-		Name:             os.Getenv("ENVIRONMENT_NAME"),
-		AblyPublishKey:   os.Getenv("ABLY_PUBLISH_KEY"),
-		AblySubscribeKey: os.Getenv("ABLY_SUBSCRIBE_KEY"),
 		AwsRegion:        os.Getenv("AWS_REGION"),
+		AwsReportFolder:  os.Getenv("AWS_REPORT_FOLDER"),
 		AwsSecretKey:     os.Getenv("AWS_SECRET_KEY"),
 		DbKeyPrefix:      os.Getenv("DB_KEY_PREFIX"),
 		DbUrl:            os.Getenv("REDIS_URL"),
@@ -170,8 +167,6 @@ func pushEnvConfig(filename string) error {
 		HttpScheme:       os.Getenv("HTTP_SCHEME"),
 		Name:             os.Getenv("ENVIRONMENT_NAME"),
 		SmtpCredId:       os.Getenv("SMTP_CRED_ID"),
-		DbUrl:            os.Getenv("REDIS_URL"),
-		DbKeyPrefix:      os.Getenv("DB_KEY_PREFIX"),
 		SmtpCredSecret:   os.Getenv("SMTP_CRED_SECRET"),
 		SmtpHost:         os.Getenv("SMTP_HOST"),
 		SmtpPort:         getEnvPort(os.Getenv("SMTP_PORT"), 2025),
