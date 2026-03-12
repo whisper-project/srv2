@@ -16,7 +16,7 @@ import (
 
 func IsAllowedListener(c *gin.Context, conversationId, profileId string) (bool, error) {
 	m := storage.AllowedListeners(conversationId)
-	ok, err := platform.IsMember(c.Request.Context(), m, profileId)
+	ok, err := platform.IsSetMember(c.Request.Context(), m, profileId)
 	if err != nil {
 		middleware.CtxLog(c).Error("storage failure checking allowed listener",
 			zap.String("conversationId", conversationId), zap.String("profileId", profileId), zap.Error(err))
@@ -27,7 +27,7 @@ func IsAllowedListener(c *gin.Context, conversationId, profileId string) (bool, 
 
 func AddAllowedListener(c *gin.Context, conversationId, profileId string) error {
 	m := storage.AllowedListeners(conversationId)
-	err := platform.AddMembers(c.Request.Context(), m, profileId)
+	err := platform.AddSetMembers(c.Request.Context(), m, profileId)
 	if err != nil {
 		middleware.CtxLog(c).Error("storage failure adding allowed listener",
 			zap.String("conversationId", conversationId), zap.String("profileId", profileId), zap.Error(err))
@@ -38,7 +38,7 @@ func AddAllowedListener(c *gin.Context, conversationId, profileId string) error 
 
 func RemoveAllowedListener(c *gin.Context, conversationId, profileId string) error {
 	m := storage.AllowedListeners(conversationId)
-	err := platform.RemoveMembers(c.Request.Context(), m, profileId)
+	err := platform.RemoveSetMembers(c.Request.Context(), m, profileId)
 	if err != nil {
 		middleware.CtxLog(c).Error("storage failure removing allowed listener",
 			zap.String("conversationId", conversationId), zap.String("profileId", profileId), zap.Error(err))

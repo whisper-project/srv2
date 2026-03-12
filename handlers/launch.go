@@ -95,7 +95,7 @@ func PostRequestEmailHandler(c *gin.Context) {
 	hash := platform2.MakeSha1(email)
 	// look for a profile that matches the email
 	ctx := c.Request.Context()
-	profileId, err := platform2.MapGet(ctx, storage.EmailProfileMap, hash)
+	profileId, err := platform2.GetMapValue(ctx, storage.EmailProfileMap, hash)
 	if err != nil {
 		middleware.CtxLog(c).Error("Map failure", zap.String("email", hash), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

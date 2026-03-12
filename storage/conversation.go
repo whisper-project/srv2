@@ -57,7 +57,7 @@ func NewConversation(owner, name string) *Conversation {
 // GetConversation returns the conversation with the given id.
 func GetConversation(id string) (*Conversation, error) {
 	c := &Conversation{Id: id}
-	if err := platform.LoadObject(sCtx(), c); err != nil {
+	if err := platform.FetchObject(sCtx(), c); err != nil {
 		sLog().Error("storage failure (load) on Conversation",
 			zap.String("id", id), zap.Error(err))
 		return nil, err
@@ -67,7 +67,7 @@ func GetConversation(id string) (*Conversation, error) {
 
 // SaveConversation saves the conversation with the given id.
 func SaveConversation(c *Conversation) error {
-	if err := platform.SaveObject(sCtx(), c); err != nil {
+	if err := platform.StoreObject(sCtx(), c); err != nil {
 		sLog().Error("storage failure (save) on Conversation",
 			zap.String("id", c.Id), zap.Error(err))
 		return err
@@ -111,7 +111,7 @@ func (a AllowedListeners) StorageId() string {
 // has allowed the user with the given profileId as a listener.
 func IsAllowedListener(conversationId, profileId string) (bool, error) {
 	id := AllowedListeners(conversationId)
-	ok, err := platform.IsMember(sCtx(), id, profileId)
+	ok, err := platform.IsSetMember(sCtx(), id, profileId)
 	if err != nil {
 		sLog().Error("storage failure (lookup) on AllowedListeners",
 			zap.String("conversationId", conversationId), zap.Error(err))
@@ -123,7 +123,7 @@ func IsAllowedListener(conversationId, profileId string) (bool, error) {
 // allows the user with the given profileId as a listener.
 func AddAllowedListener(conversationId, profileId string) error {
 	id := AllowedListeners(conversationId)
-	if err := platform.AddMembers(sCtx(), id, profileId); err != nil {
+	if err := platform.AddSetMembers(sCtx(), id, profileId); err != nil {
 		sLog().Error("storage failure (add) on AllowedListeners",
 			zap.String("conversationId", conversationId), zap.Error(err))
 		return err
@@ -135,7 +135,7 @@ func AddAllowedListener(conversationId, profileId string) error {
 // does not allow the user with the given profileId as a listener.
 func RemoveAllowedListener(conversationId, profileId string) error {
 	id := AllowedListeners(conversationId)
-	if err := platform.RemoveMembers(sCtx(), id, profileId); err != nil {
+	if err := platform.RemoveSetMembers(sCtx(), id, profileId); err != nil {
 		sLog().Error("storage failure (remove) on AllowedListeners",
 			zap.String("conversationId", conversationId), zap.Error(err))
 		return err
@@ -147,7 +147,7 @@ func RemoveAllowedListener(conversationId, profileId string) error {
 // who are allowed to listen to the conversation with the given conversationId.
 func ListAllowedListeners(conversationId string) ([]string, error) {
 	id := AllowedListeners(conversationId)
-	list, err := platform.FetchMembers(sCtx(), id)
+	list, err := platform.FetchSetMembers(sCtx(), id)
 	if err != nil {
 		sLog().Error("storage failure (fetch) on AllowedListeners",
 			zap.String("conversationId", conversationId), zap.Error(err))

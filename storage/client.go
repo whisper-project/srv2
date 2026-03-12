@@ -57,7 +57,7 @@ func (a *ActivityData) FromRedis(b []byte) error {
 // GetClientActivity returns the last activity recorded for a given clientId.
 func GetClientActivity(clientId string) (*ActivityData, error) {
 	a := &ActivityData{ClientId: clientId}
-	if err := platform.LoadObject(sCtx(), a); err != nil {
+	if err := platform.FetchObject(sCtx(), a); err != nil {
 		sLog().Error("storage failure (load) on ActivityData",
 			zap.String("clientId", clientId), zap.Error(err))
 		return nil, err
@@ -67,7 +67,7 @@ func GetClientActivity(clientId string) (*ActivityData, error) {
 
 // SaveClientActivity saves the activity data for a given clientId.
 func SaveClientActivity(a *ActivityData) error {
-	if err := platform.SaveObject(sCtx(), a); err != nil {
+	if err := platform.StoreObject(sCtx(), a); err != nil {
 		sLog().Error("storage failure (save) on ActivityData",
 			zap.String("clientId", a.ClientId), zap.Error(err))
 		return err

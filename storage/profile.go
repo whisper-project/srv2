@@ -55,7 +55,7 @@ func (p *Profile) FromRedis(b []byte) error {
 // GetProfile returns the profile with the given id.
 func GetProfile(id string) (*Profile, error) {
 	p := &Profile{Id: id}
-	if err := platform.LoadObject(sCtx(), p); err != nil {
+	if err := platform.FetchObject(sCtx(), p); err != nil {
 		sLog().Error("storage failure (load) on Profile",
 			zap.String("id", id), zap.Error(err))
 		return nil, err
@@ -65,7 +65,7 @@ func GetProfile(id string) (*Profile, error) {
 
 // SaveProfile saves the given profile p.
 func SaveProfile(p *Profile) error {
-	if err := platform.SaveObject(sCtx(), p); err != nil {
+	if err := platform.StoreObject(sCtx(), p); err != nil {
 		sLog().Error("storage failure (save) on Profile",
 			zap.String("id", p.Id), zap.Error(err))
 		return err
@@ -88,7 +88,7 @@ var EmailProfileMap = platform.StorableMap("email-profile-map")
 
 // GetEmailProfile returns the profile id for the given hashed email.
 func GetEmailProfile(hashedEmail string) (string, error) {
-	profileId, err := platform.MapGet(sCtx(), EmailProfileMap, hashedEmail)
+	profileId, err := platform.GetMapValue(sCtx(), EmailProfileMap, hashedEmail)
 	if err != nil {
 		sLog().Error("EmailProfileMap failure", zap.String("email", hashedEmail), zap.Error(err))
 		return "", err
@@ -98,7 +98,7 @@ func GetEmailProfile(hashedEmail string) (string, error) {
 
 // SetEmailProfile maps the given hashed email to the given profile id.
 func SetEmailProfile(hashedEmail, profileId string) error {
-	if err := platform.MapSet(sCtx(), EmailProfileMap, hashedEmail, profileId); err != nil {
+	if err := platform.SetMapValue(sCtx(), EmailProfileMap, hashedEmail, profileId); err != nil {
 		sLog().Error("EmailProfileMap set failure",
 			zap.String("email", hashedEmail), zap.String("profileId", profileId), zap.Error(err))
 		return err
@@ -108,7 +108,7 @@ func SetEmailProfile(hashedEmail, profileId string) error {
 
 // RemoveEmailProfile removes the mapping for the given hashed email.
 func RemoveEmailProfile(hashedEmail string) error {
-	if err := platform.MapRemove(sCtx(), EmailProfileMap, hashedEmail); err != nil {
+	if err := platform.MapRemoveKey(sCtx(), EmailProfileMap, hashedEmail); err != nil {
 		sLog().Error("EmailProfileMap remove failure",
 			zap.String("email", hashedEmail), zap.Error(err))
 		return err
@@ -131,7 +131,7 @@ func (p OwnedConversationMap) StorageId() string {
 // AddOwnedConversation adds the given conversation to its owner's name->id map.
 func AddOwnedConversation(c *Conversation) error {
 	key := OwnedConversationMap(c.Owner)
-	if err := platform.MapSet(sCtx(), key, c.Name, c.Id); err != nil {
+	if err := platform.SetMapValue(sCtx(), key, c.Name, c.Id); err != nil {
 		sLog().Error("storage failure (add) on OwnedConversationMap",
 			zap.String("profileId", c.Owner), zap.String("name", c.Name), zap.Error(err))
 		return err
@@ -142,7 +142,7 @@ func AddOwnedConversation(c *Conversation) error {
 // RemoveOwnedConversation removes the given conversation from its owner's name->id map.
 func RemoveOwnedConversation(c *Conversation) error {
 	key := OwnedConversationMap(c.Owner)
-	if err := platform.MapRemove(sCtx(), key, c.Name); err != nil {
+	if err := platform.MapRemoveKey(sCtx(), key, c.Name); err != nil {
 		sLog().Error("storage failure (remove) on OwnedConversationMap",
 			zap.String("profileId", c.Owner), zap.String("name", c.Name), zap.Error(err))
 		return err
@@ -155,7 +155,7 @@ func RemoveOwnedConversation(c *Conversation) error {
 // If the profile doesn't own the conversation, an empty conversation id (and no error) is returned.
 func GetOwnedConversationIdByName(profileId string, name string) (string, error) {
 	key := OwnedConversationMap(profileId)
-	conversationId, err := platform.MapGet(sCtx(), key, name)
+	conversationId, err := platform.GetMapValue(sCtx(), key, name)
 	if err != nil {
 		sLog().Error("storage failure (lookup) on OwnedConversationMap",
 			zap.String("profileId", profileId), zap.String("name", name), zap.Error(err))
@@ -167,7 +167,7 @@ func GetOwnedConversationIdByName(profileId string, name string) (string, error)
 // GetOwnedConversationsNameToIdMap returns a name->id map of all conversations owned by the given profile id.
 func GetOwnedConversationsNameToIdMap(profileId string) (map[string]string, error) {
 	key := OwnedConversationMap(profileId)
-	cMap, err := platform.MapGetAll(sCtx(), key)
+	cMap, err := platform.GetMapAll(sCtx(), key)
 	if err != nil {
 		sLog().Error("storage failure (lookup) on OwnedConversationMap",
 			zap.String("profileId", profileId), zap.Error(err))

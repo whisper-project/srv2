@@ -26,7 +26,7 @@ var SuspendedSessionQueue = platform.StorableList("suspended-session-list")
 
 // AddSuspendedSession adds a session to the back of the queue.
 func AddSuspendedSession(id string) error {
-	if err := platform.PushRange(context.Background(), SuspendedSessionQueue, true, id); err != nil {
+	if err := platform.PushListMembers(context.Background(), SuspendedSessionQueue, true, id); err != nil {
 		return err
 	}
 	return nil
@@ -34,7 +34,7 @@ func AddSuspendedSession(id string) error {
 
 // RemoveSuspendedSession removes a session from the queue by session id.
 func RemoveSuspendedSession(id string) error {
-	if err := platform.RemoveElement(context.Background(), SuspendedSessionQueue, 1, id); err != nil {
+	if err := platform.RemoveListElement(context.Background(), SuspendedSessionQueue, 1, id); err != nil {
 		return err
 	}
 	return nil
@@ -43,7 +43,7 @@ func RemoveSuspendedSession(id string) error {
 // WaitForSuspendedSession blocks until a session is available in the front of the queue,
 // or until the timeout is reached. It returns the session id, or "" on timeout.
 func WaitForSuspendedSession(timeout time.Duration) (string, error) {
-	id, err := platform.FetchOneBlocking(context.Background(), SuspendedSessionQueue, false, timeout)
+	id, err := platform.FetchListMemberBlocking(context.Background(), SuspendedSessionQueue, false, timeout)
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return "", nil
@@ -97,7 +97,7 @@ func (s *SessionState) FromRedis(b []byte) error {
 // server that is shutting down and loaded by the server that
 // is starting up.
 func SaveSessionState(s *SessionState) error {
-	if err := platform.SaveObject(sCtx(), s); err != nil {
+	if err := platform.StoreObject(sCtx(), s); err != nil {
 		sLog().Error("storage failure (save) on SessionState",
 			zap.String("id", s.Id), zap.Error(err))
 		return err
@@ -112,7 +112,7 @@ func SaveSessionState(s *SessionState) error {
 // retrieval, the state is deleted from the database.
 func LoadSessionState(id string) (*SessionState, error) {
 	s := &SessionState{Id: id}
-	if err := platform.LoadObject(sCtx(), s); err != nil {
+	if err := platform.FetchObject(sCtx(), s); err != nil {
 		sLog().Error("storage failure (load) on SessionState",
 			zap.String("id", id), zap.Error(err))
 		return nil, err
@@ -186,7 +186,7 @@ func SaveSuspendedSessionPackets(id string, packets ...protocol.ContentPacket) e
 		packetStrings[i] = p.String()
 	}
 	loc := SuspendedSessionPackets(id)
-	if err := platform.PushRange(context.Background(), loc, false, packetStrings...); err != nil {
+	if err := platform.PushListMembers(context.Background(), loc, false, packetStrings...); err != nil {
 		sLog().Error("storage failure (save) on suspended packets",
 			zap.String("session_id", id), zap.Error(err))
 		return err
@@ -204,7 +204,7 @@ func SaveSuspendedSessionPackets(id string, packets ...protocol.ContentPacket) e
 // doesn't fetch the suspended packets until it's subscribed to the session and
 // receiving live packets directly.)
 func LoadSuspendedSessionPackets(id string) ([]protocol.ContentPacket, error) {
-	packetStrings, err := platform.FetchRange(sCtx(), SuspendedSessionPackets(id), 0, -1)
+	packetStrings, err := platform.FetchListRange(sCtx(), SuspendedSessionPackets(id), 0, -1)
 	if err != nil {
 		return nil, err
 	}
@@ -278,7 +278,7 @@ func CreateSessionTranscript(id string, state *SessionState) *Transcript {
 //
 // Transcripts are stored for a max of 1 year.
 func SaveTranscript(t *Transcript) error {
-	if err := platform.SaveObject(sCtx(), t); err != nil {
+	if err := platform.StoreObject(sCtx(), t); err != nil {
 		sLog().Error("storage failure (save) on Transcript",
 			zap.String("id", t.Id), zap.Error(err))
 		return err
@@ -300,7 +300,7 @@ func SaveTranscript(t *Transcript) error {
 // recipient has a year to access it.
 func LoadTranscript(id string) (*Transcript, error) {
 	t := &Transcript{Id: id}
-	if err := platform.LoadObject(sCtx(), t); err != nil {
+	if err := platform.FetchObject(sCtx(), t); err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
