@@ -26,7 +26,7 @@ func TestActivityDataInterface(t *testing.T) {
 	}
 	var o ActivityData
 	platform.RedisKeyTester(t, i, "activity-data:", clientId)
-	platform.RedisValueTester(t, i, &o, func(l, r *ActivityData) bool { return l == r })
+	platform.RedisValueTester(t, i, &o, func(l, r *ActivityData) bool { return *l == *r })
 }
 
 func TestClientActivityMethods(t *testing.T) {
@@ -44,7 +44,7 @@ func TestClientActivityMethods(t *testing.T) {
 	if a1.ProfileId != profileId {
 		t.Errorf("Got the wrong profile id. Got %s, Want %s", a1.ProfileId, profileId)
 	}
-	if a1.LaunchTime <= now {
+	if a1.LaunchTime < now {
 		t.Errorf("Got an early start. Got %v, Want no earlier than %v", a1.LaunchTime, now)
 	}
 	if a1.LastActivity != "launch" {

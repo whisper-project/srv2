@@ -139,7 +139,7 @@ func AddOwnedConversation(c *Conversation) error {
 	return nil
 }
 
-// RemoveOwnedConversation removes the given conversation from its owner's name->id map.
+// RemoveOwnedConversation removes the given conversation from its owner's name->id map
 func RemoveOwnedConversation(c *Conversation) error {
 	key := OwnedConversationMap(c.Owner)
 	if err := platform.MapRemoveKey(sCtx(), key, c.Name); err != nil {

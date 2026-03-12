@@ -7,6 +7,7 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -50,7 +51,7 @@ func newSampleSessionState(id string) *SessionState {
 func TestSessionStateResumeSuspendResumeResume(t *testing.T) {
 	id := platform.NewId("test-session-state-")
 	s0, err := LoadSessionState(id)
-	if s0 != nil || err != nil {
+	if s0 != nil || !errors.Is(err, platform.NotFoundError) {
 		t.Fatalf("expected nil state, got %v, err %v", s0, err)
 	}
 	s1 := newSampleSessionState(id)
@@ -64,8 +65,9 @@ func TestSessionStateResumeSuspendResumeResume(t *testing.T) {
 	if diff := deep.Equal(s1, s0); diff != nil {
 		t.Errorf("suspended state mismatch: %v", diff)
 	}
-	if s1, err = LoadSessionState(id); err != nil || s1 != nil {
-		t.Fatalf("repeated fetch of suspended state succeeded")
+	s3, err := LoadSessionState(id)
+	if s3 != nil || !errors.Is(err, platform.NotFoundError) {
+		t.Fatalf("expected nil state, got %v, err %v", s3, err)
 	}
 }
 
@@ -75,8 +77,8 @@ func TestSuspendedSessionPacketsInterface(t *testing.T) {
 
 func TestSessionPacketsResumeSuspendResume(t *testing.T) {
 	id := platform.NewId("test-session-packets-")
-	if p0, err := LoadSuspendedSessionPackets(id); p0 != nil || err != nil {
-		t.Errorf("expected nil packets, got packets %v, err %v", p0, err)
+	if p0, err := LoadSuspendedSessionPackets(id); len(p0) != 0 || err != nil {
+		t.Errorf("expected no packets, got packets %v, err %v", p0, err)
 	}
 	packets := []protocol.ContentPacket{
 		{"a", "a", "a"},
@@ -118,7 +120,7 @@ func TestTranscriptInterface(t *testing.T) {
 func TestNewTranscriptFetchStoreFetch(t *testing.T) {
 	cId := platform.NewId("test-convo-")
 	tId := platform.NewId("test-transcript-")
-	if transcript, err := LoadTranscript(tId); err != nil || transcript != nil {
+	if transcript, err := LoadTranscript(tId); !errors.Is(err, platform.NotFoundError) || transcript != nil {
 		t.Errorf("expected nil transcript, got %v, err %v", transcript, err)
 	}
 	state := newSampleSessionState(cId)

@@ -20,7 +20,7 @@ func TestProfileInterface(t *testing.T) {
 	p := &Profile{Id: id, Name: "test", EmailHash: platform.MakeSha1("test@test.com"), Secret: uuid.NewString()}
 	var n Profile
 	platform.RedisKeyTester(t, p, "profile:", id)
-	platform.RedisValueTester(t, p, &n, func(l, r *Profile) bool { return l == r })
+	platform.RedisValueTester(t, p, &n, func(l, r *Profile) bool { return *l == *r })
 }
 
 func TestOwnedConversationMapInterface(t *testing.T) {
@@ -43,9 +43,11 @@ func TestProfileMethods(t *testing.T) {
 	if err != nil {
 		t.Errorf("failed to get 'Conversation 1' id by name: %v", err)
 	}
-	if c1, err := GetConversation(c1Id); err != nil {
+	c1, err := GetConversation(c1Id)
+	if err != nil {
 		t.Errorf("failed to get 'Conversation 1' by name: %v", err)
-	} else if c1 != nil && c1.Owner != p.Id {
+	}
+	if c1.Owner != p.Id {
 		t.Errorf("expected 'Conversation 1' to be owned by %v, but the owner is %v", p.Id, c1.Owner)
 	}
 	c2, err := CreateNewOwnedConversation(p.Id, "Conversation 2")
@@ -59,11 +61,11 @@ func TestProfileMethods(t *testing.T) {
 	if c2Id != c2.Id {
 		t.Errorf("expected 'Conversation 2' id to be %v, but got %v", c2.Id, c2Id)
 	}
-	if err := DeleteOwnedConversation(p.Id, c1Id); err != nil {
+	if err := DeleteOwnedConversation(p.Id, c1.Name); err != nil {
 		t.Errorf("failed to delete 'Conversation 1': %v", err)
 	}
-	if _, err := GetConversation(c1Id); !errors.Is(err, platform.NotFoundError) {
-		t.Errorf("expected 'Conversation 1' to be deleted, but got err: %v", err)
+	if c, err := GetConversation(c1Id); !errors.Is(err, platform.NotFoundError) {
+		t.Errorf("expected 'Conversation 1' to be deleted, but got %v, err: %v", c, err)
 	}
 	if id, err := GetOwnedConversationIdByName(p.Id, "Conversation 1"); id != "" || err != nil {
 		t.Errorf("expected 'Conversation 1' to be deleted, but got id: %v, err: %v", id, err)
@@ -71,10 +73,10 @@ func TestProfileMethods(t *testing.T) {
 	if errs := DeleteExistingUser(p.Id); errs != nil {
 		t.Errorf("failed to delete user: %v", errs)
 	}
-	if _, err := GetConversation(c2Id); !errors.Is(err, platform.NotFoundError) {
-		t.Errorf("expected 'Conversation 2' to be deleted, but got err: %v", err)
+	if c, err := GetConversation(c2Id); !errors.Is(err, platform.NotFoundError) {
+		t.Errorf("expected 'Conversation 2' to be deleted, but got %v, err: %v", c, err)
 	}
-	if m, err := GetOwnedConversationsNameToIdMap(p.Id); m != nil || err != nil {
+	if m, err := GetOwnedConversationsNameToIdMap(p.Id); len(m) != 0 || err != nil {
 		t.Errorf("expected the deleted user's conversation map to be empty, but map: %v, err: %v", m, err)
 	}
 	if _, err := GetProfile(p.Id); !errors.Is(err, platform.NotFoundError) {

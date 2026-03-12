@@ -19,9 +19,9 @@ import (
 func TestConversationInterface(t *testing.T) {
 	id := uuid.NewString()
 	c := &Conversation{Id: id}
-	var n *Conversation
+	var n Conversation
 	platform.RedisKeyTester(t, c, "conversation:", id)
-	platform.RedisValueTester(t, c, n, func(l, r *Conversation) bool { return l == r })
+	platform.RedisValueTester(t, c, &n, func(l, r *Conversation) bool { return *l == *r })
 }
 
 func TestAllowedListenersInterface(t *testing.T) {
