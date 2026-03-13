@@ -19,6 +19,30 @@ import (
 	"github.com/whisper-project/srv2/platform"
 )
 
+func TestSuspendedSessionIdAddWaitRemoveWait(t *testing.T) {
+	id1 := platform.NewId("test-session-state-")
+	if err := AddSuspendedSession(id1); err != nil {
+		t.Fatalf("failed to add suspended session id %v: %s", id1, err)
+	}
+	id2, err := WaitForSuspendedSession(1)
+	if err != nil {
+		t.Fatalf("failed to wait for suspended session id: %s", err)
+	}
+	if id2 != id1 {
+		t.Errorf("retrieved session id %v does not match added session id %v", id2, id1)
+	}
+	if err := RemoveSuspendedSession(id2); err != nil {
+		t.Fatalf("failed to remove retrieved session id %v: %s", id2, err)
+	}
+	id3, err := WaitForSuspendedSession(1)
+	if err != nil {
+		t.Fatalf("failed to wait for suspended session id: %s", err)
+	}
+	if id3 != "" {
+		t.Errorf("expected empty session id but got %v", id3)
+	}
+}
+
 func TestSessionStateInterface(t *testing.T) {
 	id := platform.NewId("test-session-state-")
 	s := newSampleSessionState(id)
@@ -117,7 +141,7 @@ func TestTranscriptInterface(t *testing.T) {
 	platform.RedisValueTester(t, t1, &t2, func(l, r *Transcript) bool { return deep.Equal(l, r) == nil })
 }
 
-func TestNewTranscriptFetchStoreFetch(t *testing.T) {
+func TestNewTranscriptFetchStoreFetchDeleteFetch(t *testing.T) {
 	cId := platform.NewId("test-convo-")
 	tId := platform.NewId("test-transcript-")
 	if transcript, err := LoadTranscript(tId); !errors.Is(err, platform.NotFoundError) || transcript != nil {
@@ -140,5 +164,11 @@ func TestNewTranscriptFetchStoreFetch(t *testing.T) {
 	}
 	if diff := deep.Equal(transcript, retrieved); diff != nil {
 		t.Errorf("retrieved transcript mismatch: %v", diff)
+	}
+	if err := DeleteTranscript(tId); err != nil {
+		t.Errorf("delete of deleted transcript failed: %v", err)
+	}
+	if transcript, err := LoadTranscript(tId); !errors.Is(err, platform.NotFoundError) || transcript != nil {
+		t.Errorf("expected nil transcript, got %v, err %v", transcript, err)
 	}
 }

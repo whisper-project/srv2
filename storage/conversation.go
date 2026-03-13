@@ -115,6 +115,7 @@ func IsAllowedListener(conversationId, profileId string) (bool, error) {
 	if err != nil {
 		sLog().Error("storage failure (lookup) on AllowedListeners",
 			zap.String("conversationId", conversationId), zap.Error(err))
+		return false, err
 	}
 	return ok, err
 }

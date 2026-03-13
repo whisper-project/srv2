@@ -41,9 +41,10 @@ func RemoveSuspendedSession(id string) error {
 }
 
 // WaitForSuspendedSession blocks until a session is available in the front of the queue,
-// or until the timeout is reached. It returns the session id, or "" on timeout.
-func WaitForSuspendedSession(timeout time.Duration) (string, error) {
-	id, err := platform.FetchListMemberBlocking(context.Background(), SuspendedSessionQueue, false, timeout)
+// or until the timeout (in seconds) is reached. It returns the session id, or "" on timeout.
+func WaitForSuspendedSession(timeout uint) (string, error) {
+	wait := time.Duration(timeout) * time.Second
+	id, err := platform.FetchListMemberBlocking(context.Background(), SuspendedSessionQueue, false, wait)
 	if err != nil {
 		if errors.Is(err, redis.Nil) {
 			return "", nil
@@ -179,6 +180,7 @@ func (s SuspendedSessionPackets) StorageId() string {
 // SaveSuspendedSessionPackets saves the given packets at the end of the list.
 func SaveSuspendedSessionPackets(id string, packets ...protocol.ContentPacket) error {
 	if len(packets) == 0 {
+		// notest
 		return nil
 	}
 	packetStrings := make([]string, len(packets))
@@ -211,6 +213,7 @@ func LoadSuspendedSessionPackets(id string) ([]protocol.ContentPacket, error) {
 	if err = platform.SetExpiration(sCtx(), SuspendedSessionPackets(id), 30); err != nil {
 		// log but don't return this error, because it just means the suspended packets will
 		// hang around in the database until they are cleaned up.
+		// notest
 		sLog().Error("storage failure (set expiration) on suspended packets",
 			zap.String("session_id", id), zap.Error(err))
 	}
@@ -287,6 +290,7 @@ func SaveTranscript(t *Transcript) error {
 	if err := platform.SetExpiration(sCtx(), t, 1*yearSecs); err != nil {
 		// log but don't return this error, because it just means the transcript will
 		// hang around in the database until it is cleaned up.
+		// notest
 		sLog().Error("storage failure (expiration) on Transcript",
 			zap.String("id", t.Id), zap.Error(err))
 	}
@@ -302,6 +306,7 @@ func LoadTranscript(id string) (*Transcript, error) {
 	t := &Transcript{Id: id}
 	if err := platform.FetchObject(sCtx(), t); err != nil {
 		if errors.Is(err, redis.Nil) {
+			// notest
 			return nil, nil
 		}
 		return nil, err
@@ -309,8 +314,22 @@ func LoadTranscript(id string) (*Transcript, error) {
 	const yearSecs int64 = 365 * 24 * 60 * 60
 	if err := platform.SetExpiration(sCtx(), t, 1*yearSecs); err != nil {
 		// log but don't return this error, because the transcript still got loaded.
+		// notest
 		sLog().Error("storage failure (expiration) on Transcript",
 			zap.String("id", t.Id), zap.Error(err))
 	}
 	return t, nil
+}
+
+// DeleteTranscript deletes the transcript with the given ID from the database.
+//
+// Deleting a non-existent transcript is a no-op.
+func DeleteTranscript(id string) error {
+	t := &Transcript{Id: id}
+	if err := platform.DeleteStorage(sCtx(), t); err != nil {
+		sLog().Error("storage failure (delete) on Transcript",
+			zap.String("id", t.Id), zap.Error(err))
+		return err
+	}
+	return nil
 }

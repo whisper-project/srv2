@@ -109,6 +109,7 @@ func ObserveClientActivity(clientId string, activity string) {
 	now := time.Now().UnixMilli()
 	a, err := GetClientActivity(clientId)
 	if err != nil {
+		// notest
 		return
 	}
 	a.LastActivity = activity

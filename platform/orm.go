@@ -28,6 +28,13 @@ type RedisKey interface {
 // Hand it a value of the type, the expected prefix of the type, and the expected ID of the value.
 func RedisKeyTester[K RedisKey](t *testing.T, rk K, prefix, id string) {
 	t.Helper()
+	// if this is a pointer type, check for handling nil values
+	if reflect.ValueOf(rk).Kind() == reflect.Ptr {
+		var nk K
+		if nk.StorageId() != "" {
+			t.Errorf("expecting empty storage id, got %v", nk.StorageId())
+		}
+	}
 	if rk.StoragePrefix() != prefix {
 		t.Errorf("(%T).StoragePrefix() returned %q, expected %q", rk, rk.StoragePrefix(), prefix)
 	}
