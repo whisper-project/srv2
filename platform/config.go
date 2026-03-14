@@ -39,9 +39,9 @@ type Environment struct {
 
 //goland:noinspection SpellCheckingInspection
 var (
-	ciConfig = Environment{
-		AblyPublishKey:   "xVLyHw.DGYdkQ:FtPUNIourpYSoZAIbeon0p_rJGtb5vO1j2OIzP3GMX8",
-		AblySubscribeKey: "xVLyHw.DGYdkQ:FtPUNIourpYSoZAIbeon0p_rJGtb5vO1j2OIzP3GMX8",
+	loadedConfig = Environment{
+		AblyPublishKey:   "",
+		AblySubscribeKey: "",
 		AgePublicKey:     "",
 		AgeSecretKey:     "",
 		DbKeyPrefix:      "c:",
@@ -52,100 +52,73 @@ var (
 		Name:             "CI",
 		SmtpCredId:       "",
 		SmtpCredSecret:   "",
-		SmtpHost:         "localhost",
+		SmtpHost:         "",
 		SmtpPort:         2500,
 	}
-	loadedConfig        = ciConfig
-	configStack         []Environment
-	configChangeActions = make(map[string]func())
 )
 
-func RegisterForConfigChange(name string, action func()) {
-	if _, ok := configChangeActions[name]; ok {
-		panic(`Duplicate action registration for "` + name + `"`)
-	}
-	configChangeActions[name] = action
+func init() {
+	_ = SetConfig("d")
 }
 
-func UnregisterForConfigChange(name string) {
-	delete(configChangeActions, name)
-}
-
-func runConfigChangeActions() {
-	for _, action := range configChangeActions {
-		action()
-	}
-}
-
+// GetConfig returns the current Environment.
+//
+// There is always a current environment. When this module is first loaded,
+// it attempts to load a development environment via `SetConfig("d")`.
+// If that fails, it falls back to a `CI` environment that has no
+// secret values in it.
 func GetConfig() Environment {
 	return loadedConfig
 }
 
-func PushConfig(name string) error {
+// SetConfig sets the environment based on the dotenv file of the specified name.
+//
+// If you don't specify any name, you get the environment from the current directory's
+// `.env.vault` file selected by the `DOTENV_KEY` environment variable. Only the
+// current directory is searched for the `.env.vault` file (or fallback `.env` file).
+//
+// If you do specify a name, you are specifying that you want to the environment
+// loaded from a `.env*` file. Only the first character of the name matters,
+// and it must be one of 'd' (for `.env`), 's' for `.env.staging`,
+// 'p' for `.env.production`, or 't' for `.env.testing`. And the file is looked
+// for not only in the current directory, but in 4 levels of parent directory.
+func SetConfig(name string) error {
+	// notest
 	if name == "" {
-		return pushEnvConfig("")
-	}
-	if strings.HasPrefix(name, "c") {
-		return pushCiConfig()
+		return setEnvConfig("")
 	}
 	if strings.HasPrefix(name, "d") {
-		return pushEnvConfig(".env")
+		return setEnvConfig(".env")
 	}
 	if strings.HasPrefix(name, "s") {
-		return pushEnvConfig(".env.staging")
+		return setEnvConfig(".env.staging")
 	}
 	if strings.HasPrefix(name, "p") {
-		return pushEnvConfig(".env.production")
+		return setEnvConfig(".env.production")
 	}
 	if strings.HasPrefix(name, "t") {
-		return pushEnvConfig(".env.testing")
+		return setEnvConfig(".env.testing")
 	}
 	return fmt.Errorf("unknown environment: %s", name)
 }
 
-func PushAlteredConfig(env Environment) {
-	configStack = append(configStack, loadedConfig)
-	loadedConfig = env
-	runConfigChangeActions()
-}
-
-func pushCiConfig() error {
-	configStack = append(configStack, loadedConfig)
-	loadedConfig = ciConfig
-	runConfigChangeActions()
-	return nil
-}
-
-func pushEnvConfig(filename string) error {
+func setEnvConfig(filename string) error {
 	var d string
 	var err error
 	if filename == "" {
-		if d, err = FindEnvFile(".env.vault", true); err == nil {
-			if d == "" {
-				err = godotenvvault.Overload()
-			} else {
-				var c string
-				if c, err = os.Getwd(); err == nil {
-					if err = os.Chdir(d); err == nil {
-						err = godotenvvault.Overload()
-						// if we fail to change back to the prior working directory, so be it.
-						_ = os.Chdir(c)
-					}
-				}
-			}
-		}
+		err = godotenvvault.Overload()
 	} else {
-		if d, err = FindEnvFile(filename, false); err == nil {
+		if d, err = FindEnvFile(filename); err == nil {
 			err = godotenvvault.Overload(d + filename)
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("error loading .env vars: %v", err)
+		return fmt.Errorf("error loading environment: %w", err)
 	}
-	configStack = append(configStack, loadedConfig)
 	getEnvPort := func(s string, d int) int {
 		val, _ := strconv.Atoi(s)
 		if val <= 0 {
+			// notest
 			return d
 		}
 		return val
@@ -171,21 +144,10 @@ func pushEnvConfig(filename string) error {
 		SmtpHost:         os.Getenv("SMTP_HOST"),
 		SmtpPort:         getEnvPort(os.Getenv("SMTP_PORT"), 2025),
 	}
-	runConfigChangeActions()
 	return nil
 }
 
-func PopConfig() {
-	if len(configStack) == 0 {
-		return
-	}
-	loadedConfig = configStack[len(configStack)-1]
-	configStack = configStack[:len(configStack)-1]
-	runConfigChangeActions()
-	return
-}
-
-func FindEnvFile(name string, fallback bool) (string, error) {
+func FindEnvFile(name string) (string, error) {
 	for i := range 5 {
 		d := ""
 		for range i {
@@ -194,11 +156,6 @@ func FindEnvFile(name string, fallback bool) (string, error) {
 		if _, err := os.Stat(d + name); err == nil {
 			return d, nil
 		}
-		if fallback {
-			if _, err := os.Stat(d + ".env"); err == nil {
-				return d, nil
-			}
-		}
 	}
-	return "", fmt.Errorf("no file %q found in parent", name)
+	return "", fmt.Errorf("no file %q found in current directory or 4 levels of parent", name)
 }

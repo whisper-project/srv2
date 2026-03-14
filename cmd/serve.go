@@ -27,11 +27,10 @@ var serveCmd = &cobra.Command{
 		env, _ := cmd.Flags().GetString("env")
 		address, _ := cmd.Flags().GetString("address")
 		port, _ := cmd.Flags().GetString("port")
-		err := platform.PushConfig(env)
+		err := platform.SetConfig(env)
 		if err != nil {
 			panic(fmt.Sprintf("Can't load configuration: %v", err))
 		}
-		defer platform.PopConfig()
 		serve(address, port)
 	},
 }

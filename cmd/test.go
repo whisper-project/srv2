@@ -25,7 +25,7 @@ Data is always loaded last.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.SetFlags(0)
 		env, _ := cmd.Flags().GetString("env")
-		err := platform.PushConfig(env)
+		err := platform.SetConfig(env)
 		if err != nil {
 			panic(err)
 		}
