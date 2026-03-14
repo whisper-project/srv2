@@ -151,7 +151,7 @@ func s3GetClient(env *Environment) (*s3.Client, error) {
 		config.WithCredentialsProvider(credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{AccessKeyID: env.AwsAccessKey, SecretAccessKey: env.AwsSecretKey},
 		}),
-		config.WithRegion(GetConfig().AwsRegion))
+		config.WithRegion(env.AwsRegion))
 	if err != nil {
 		return nil, err
 	}
