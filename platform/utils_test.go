@@ -25,6 +25,17 @@ func TestMakeSha1(t *testing.T) {
 	}
 }
 
+func TestGenerateRandomId(t *testing.T) {
+	id := generateRandomId(0)
+	if len(id) != 16 {
+		t.Errorf("id should be 16 chars long but is %d", len(id))
+	}
+	id = generateRandomId(24)
+	if len(id) != 24 {
+		t.Errorf("id should be 24 chars long but is %d", len(id))
+	}
+}
+
 func TestNewId(t *testing.T) {
 	prefix := "test-prefix-"
 	id1 := NewId(prefix)
