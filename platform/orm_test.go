@@ -359,6 +359,9 @@ func (data *OrmTestStruct) StoragePrefix() string {
 }
 
 func (data *OrmTestStruct) StorageId() string {
+	if data == nil {
+		return ""
+	}
 	return data.IdField
 }
 
@@ -373,6 +376,13 @@ func (data *OrmTestStruct) ToRedis() ([]byte, error) {
 func (data *OrmTestStruct) FromRedis(b []byte) error {
 	*data = OrmTestStruct{} // dump old data
 	return gob.NewDecoder(bytes.NewReader(b)).Decode(data)
+}
+
+func TestDbKey(t *testing.T) {
+	var rk *OrmTestStruct
+	if db, key, err := DbKey(rk); err == nil {
+		t.Errorf("DbKey should have failed, returned: %v, %v", db, key)
+	}
 }
 
 func TestOrmTesterInterface(t *testing.T) {
