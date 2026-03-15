@@ -37,3 +37,25 @@ func TestFindEnvFile(t *testing.T) {
 		}
 	}
 }
+
+func TestSetVaultConfig(t *testing.T) {
+	d, err := FindEnvFile(".env.vault")
+	if err != nil {
+		t.Fatalf("Failed to find .env.vault in a parent directory")
+	}
+	curdir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current working directory")
+	}
+	env := GetConfig()
+	if err := os.Chdir(d); err != nil {
+		t.Fatalf("Failed to chdir into parent directory")
+	}
+	if err := SetConfig(""); err != nil {
+		t.Errorf("Failed to load vault environment")
+	}
+	loadedConfig = env
+	if err := os.Chdir(curdir); err != nil {
+		t.Fatalf("Failed to returnto original working directory")
+	}
+}

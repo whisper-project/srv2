@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -26,21 +25,27 @@ type RedisKey interface {
 
 // RedisKeyTester validates the methods on a RedisKey type.
 // Hand it a value of the type, the expected prefix of the type, and the expected ID of the value.
-func RedisKeyTester[K RedisKey](t *testing.T, rk K, prefix, id string) {
-	t.Helper()
+func RedisKeyTester[K RedisKey](rk K, prefix, id string) (errs []error) {
 	// if this is a pointer type, check for handling nil values
 	if reflect.ValueOf(rk).Kind() == reflect.Ptr {
 		var nk K
+		defer func() {
+			if err := recover(); err != nil {
+				errs = append(errs, fmt.Errorf("panic while testing nil pointer RedisKey: %v", err))
+			}
+		}()
 		if nk.StorageId() != "" {
-			t.Errorf("expecting empty storage id, got %v", nk.StorageId())
+			errs = append(errs, fmt.Errorf("expecting empty storage id, got %v", nk.StorageId()))
 		}
 	}
 	if rk.StoragePrefix() != prefix {
-		t.Errorf("(%T).StoragePrefix() returned %q, expected %q", rk, rk.StoragePrefix(), prefix)
+		errs = append(errs,
+			fmt.Errorf("(%T).StoragePrefix() returned %q, expected %q", rk, rk.StoragePrefix(), prefix))
 	}
 	if v := rk.StorageId(); v != id {
-		t.Errorf("(%T).StorageId() returned %q. expected %q", rk, v, id)
+		errs = append(errs, fmt.Errorf("(%T).StorageId() returned %q, expected %q", rk, v, id))
 	}
+	return
 }
 
 // An InvalidKey error is returned if you pass an invalid RedisKey to any storage function.
@@ -68,28 +73,36 @@ type RedisValue interface {
 // RedisValueTester validates the methods on a RedisValue type.
 // Hand it a concrete value of the type, a second one with a different value,
 // and a comparator function for the two values (which will end up the same).
-func RedisValueTester[V RedisValue](t *testing.T, v1, v2 V, cmp func(V, V) bool) {
-	t.Helper()
+func RedisValueTester[V RedisValue](v1, v2 V, cmp func(V, V) bool) (errs []error) {
+	defer func() {
+		if err := recover(); err != nil {
+			// notest
+			errs = append(errs, fmt.Errorf("panic while testing RedisValue: %v", err))
+		}
+	}()
 	if reflect.ValueOf(v1).Kind() != reflect.Ptr {
-		t.Fatalf("RedisValue methods must have pointer receivers; {%T} doesn't", reflect.ValueOf(v1))
+		errs = append(errs, fmt.Errorf("{%T} must have a pointer receiver", reflect.ValueOf(v1)))
 	}
 	if reflect.ValueOf(v2).Kind() != reflect.Ptr {
-		t.Fatalf("RedisValue methods must have pointer receivers; {%T} doesn't", reflect.ValueOf(v2))
+		errs = append(errs, fmt.Errorf("{%T} must have a pointer receiver", reflect.ValueOf(v2)))
 	}
 	if cmp(v1, v2) {
-		t.Fatalf("values must differ to begin with (%v == %v)", v1, v2)
+		errs = append(errs, fmt.Errorf("values must differ to begin with (%v == %v)", v1, v2))
 	}
 	b, err := v1.ToRedis()
 	if err != nil {
-		t.Fatalf("Serialization failed: %v", err)
+		// notest
+		errs = append(errs, fmt.Errorf("Serialization of %v failed: %w", v1, err))
 	}
 	err = v2.FromRedis(b)
 	if err != nil {
-		t.Fatalf("Deserialization failed: %v", err)
+		// notest
+		errs = append(errs, fmt.Errorf("Deserialization of %T failed: %v", v1, err))
 	}
 	if !cmp(v1, v2) {
-		t.Fatalf("values must agree at the end (%v != %v)", v1, v2)
+		errs = append(errs, fmt.Errorf("values must agree at the end (%v != %v)", v1, v2))
 	}
+	return
 }
 
 // SetExpiration sets the TTL of the given RedisKey rk to the given secs.
@@ -127,6 +140,7 @@ func SetExpirationAt[K RedisKey](ctx context.Context, rk K, etime time.Time) err
 // Deleting a non-stored object is a no-op.
 func DeleteStorage[K RedisKey](ctx context.Context, rk K) error {
 	if rk.StorageId() == "" {
+		// notest
 		return fmt.Errorf("storable has no ID")
 	}
 	db, key, err := DbKey(rk)
@@ -357,6 +371,7 @@ func FetchListMemberBlocking[K RedisKey](ctx context.Context, rk K, onLeft bool,
 	}
 	src, dst := "right", "left"
 	if onLeft {
+		// notest
 		src, dst = "left", "right"
 	}
 	res := db.BLMove(ctx, key, key, src, dst, timeout)
@@ -376,6 +391,7 @@ func MoveListMember[K RedisKey](ctx context.Context, src K, dst K, srcLeft bool,
 	dstKey := prefix + dst.StoragePrefix() + dst.StorageId()
 	srcSide, dstSide := "right", "right"
 	if srcLeft {
+		// notest
 		srcSide = "left"
 	}
 	if dstLeft {

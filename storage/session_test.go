@@ -47,8 +47,16 @@ func TestSessionStateInterface(t *testing.T) {
 	id := platform.NewId("test-session-state-")
 	s := newSampleSessionState(id)
 	var n SessionState
-	platform.RedisKeyTester(t, s, "session-state:", id)
-	platform.RedisValueTester(t, s, &n, func(l, r *SessionState) bool { return deep.Equal(l, r) == nil })
+	if errs := platform.RedisKeyTester(s, "session-state:", id); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
+	if errs := platform.RedisValueTester(s, &n, func(l, r *SessionState) bool { return deep.Equal(l, r) == nil }); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func newSampleSessionState(id string) *SessionState {
@@ -96,7 +104,11 @@ func TestSessionStateResumeSuspendResumeResume(t *testing.T) {
 }
 
 func TestSuspendedSessionPacketsInterface(t *testing.T) {
-	platform.RedisKeyTester(t, SuspendedSessionPackets("test"), "suspended-packets:", "test")
+	if errs := platform.RedisKeyTester(SuspendedSessionPackets("test"), "suspended-packets:", "test"); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestSessionPacketsResumeSuspendResume(t *testing.T) {
@@ -137,8 +149,16 @@ func TestTranscriptInterface(t *testing.T) {
 		},
 	}
 	var t2 Transcript
-	platform.RedisKeyTester(t, t1, "transcript:", id)
-	platform.RedisValueTester(t, t1, &t2, func(l, r *Transcript) bool { return deep.Equal(l, r) == nil })
+	if errs := platform.RedisKeyTester(t1, "transcript:", id); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
+	if errs := platform.RedisValueTester(t1, &t2, func(l, r *Transcript) bool { return deep.Equal(l, r) == nil }); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestNewTranscriptFetchStoreFetchDeleteFetch(t *testing.T) {

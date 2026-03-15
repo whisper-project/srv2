@@ -25,8 +25,16 @@ func TestActivityDataInterface(t *testing.T) {
 		LastTime:     4,
 	}
 	var o ActivityData
-	platform.RedisKeyTester(t, i, "activity-data:", clientId)
-	platform.RedisValueTester(t, i, &o, func(l, r *ActivityData) bool { return *l == *r })
+	if errs := platform.RedisKeyTester(i, "activity-data:", clientId); len(errs) > 0 {
+		for _, err := range errs {
+			t.Error(err)
+		}
+	}
+	if errs := platform.RedisValueTester(i, &o, func(l, r *ActivityData) bool { return *l == *r }); len(errs) > 0 {
+		for _, err := range errs {
+			t.Error(err)
+		}
+	}
 }
 
 func TestClientActivityMethods(t *testing.T) {

@@ -19,12 +19,24 @@ func TestProfileInterface(t *testing.T) {
 	id := platform.NewId("test-profile-")
 	p := &Profile{Id: id, Name: "test", EmailHash: platform.MakeSha1("test@test.com"), Secret: uuid.NewString()}
 	var n Profile
-	platform.RedisKeyTester(t, p, "profile:", id)
-	platform.RedisValueTester(t, p, &n, func(l, r *Profile) bool { return *l == *r })
+	if errs := platform.RedisKeyTester(p, "profile:", id); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
+	if errs := platform.RedisValueTester(p, &n, func(l, r *Profile) bool { return *l == *r }); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestOwnedConversationMapInterface(t *testing.T) {
-	platform.RedisKeyTester(t, OwnedConversationMap("test"), "owned-conversations:", "test")
+	if errs := platform.RedisKeyTester(OwnedConversationMap("test"), "owned-conversations:", "test"); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestProfileMethods(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"testing"
 	"time"
 
@@ -24,7 +25,11 @@ import (
 var ormTestString StorableString = "ormTestString"
 
 func TestStorableStringInterface(t *testing.T) {
-	RedisKeyTester(t, ormTestString, "string:", "ormTestString")
+	if errs := RedisKeyTester(ormTestString, "string:", "ormTestString"); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestFetchSetFetchString(t *testing.T) {
@@ -74,7 +79,11 @@ func TestExpireAtString(t *testing.T) {
 var ormTestSet StorableSet = "ormTestSet"
 
 func TestStorableSetInterface(t *testing.T) {
-	RedisKeyTester(t, ormTestSet, "set:", "ormTestSet")
+	if errs := RedisKeyTester(ormTestSet, "set:", "ormTestSet"); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestFetchIsNoMembers(t *testing.T) {
@@ -127,7 +136,11 @@ func TestAddFetchIsRemoveMembers(t *testing.T) {
 var ormTestSortedSet StorableSortedSet = "ormTestSortedSet"
 
 func TestStorableSortedSetInterface(t *testing.T) {
-	RedisKeyTester(t, ormTestSortedSet, "zset:", "ormTestSortedSet")
+	if errs := RedisKeyTester(ormTestSortedSet, "zset:", "ormTestSortedSet"); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestSortedFetchAddScoreFetchRemoveMember(t *testing.T) {
@@ -179,7 +192,11 @@ var (
 )
 
 func TestStorableListInterface(t *testing.T) {
-	RedisKeyTester(t, ormTestList, "list:", "ormTestList")
+	if errs := RedisKeyTester(ormTestList, "list:", "ormTestList"); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestFetchEmptyRange(t *testing.T) {
@@ -291,7 +308,11 @@ func TestMoveRange(t *testing.T) {
 var ormTestMap StorableMap = "ormTestMap"
 
 func TestStorableMapInterface(t *testing.T) {
-	RedisKeyTester(t, ormTestMap, "map:", "ormTestMap")
+	if errs := RedisKeyTester(ormTestMap, "map:", "ormTestMap"); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestOrmTestMap(t *testing.T) {
@@ -388,10 +409,18 @@ func TestDbKey(t *testing.T) {
 func TestOrmTesterInterface(t *testing.T) {
 	v1 := OrmTestStruct{IdField: "v1", CreateDate: time.Now()}
 	v2 := OrmTestStruct{IdField: "v2"}
-	RedisKeyTester(t, &v1, "ormTestPrefix:", "v1")
-	RedisValueTester(t, &v1, &v2, func(l, r *OrmTestStruct) bool {
+	if errs := RedisKeyTester(&v1, "ormTestPrefix:", "v1"); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
+	if errs := RedisValueTester(&v1, &v2, func(l, r *OrmTestStruct) bool {
 		return l.IdField == r.IdField && l.CreateDate.Equal(r.CreateDate)
-	})
+	}); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestLoadMissingOrmTester(t *testing.T) {
@@ -572,5 +601,91 @@ func TestMapStringsAtKeys(t *testing.T) {
 	}
 	if err := MapKeys(ctx, mapper2, ormTestKey("")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+type BadTestStruct1 struct {
+	Id string
+}
+
+func (b *BadTestStruct1) StoragePrefix() string {
+	return "test-bad-prefix:"
+}
+
+func (b *BadTestStruct1) StorageId() string {
+	return b.Id
+}
+
+func TestBadTestStruct1Interface(t *testing.T) {
+	id := NewId("bad-test-struct-")
+	b := &BadTestStruct1{id}
+	if errs := RedisKeyTester(b, "test-bad-prefix:", "wrong key"); len(errs) == 0 {
+		t.Errorf("RedisKeyTest should have failed for BadTestStruct1")
+	}
+}
+
+type BadTestStruct2 struct {
+	Id string
+}
+
+func (b *BadTestStruct2) StoragePrefix() string {
+	return "test-bad-prefix:"
+}
+
+func (b *BadTestStruct2) StorageId() string {
+	if b == nil {
+		return "bad struct"
+	}
+	return b.Id
+}
+
+func (b *BadTestStruct2) ToRedis() ([]byte, error) {
+	return []byte("this is a test"), nil
+}
+
+func (b *BadTestStruct2) FromRedis(_ []byte) error {
+	*b = BadTestStruct2{"this is a test"}
+	return nil
+}
+
+func TestBadTestStruct2Interface(t *testing.T) {
+	id := NewId("bad-test-struct-")
+	b := &BadTestStruct2{id}
+	if errs := RedisKeyTester(b, "wrong-prefix:", "wrong id"); len(errs) == 0 {
+		t.Errorf("RedisKeyTester should have failed for BadTestStruct2")
+	}
+	if errs := RedisValueTester(b, b, func(l *BadTestStruct2, r *BadTestStruct2) bool { return l == r }); len(errs) == 0 {
+		t.Errorf("RedisValueTester should have failed for BadTestStruct2 once")
+	}
+}
+
+type BadTestStruct3 int
+
+func (b BadTestStruct3) StoragePrefix() string {
+	return "test-bad-struct3:"
+}
+
+func (b BadTestStruct3) StorageId() string {
+	return strconv.Itoa(int(b))
+}
+
+func (b BadTestStruct3) ToRedis() ([]byte, error) {
+	return []byte("this is a test"), nil
+}
+
+func (b BadTestStruct3) FromRedis(_ []byte) error {
+	return nil
+}
+
+func TestBadTestStruct3Interface(t *testing.T) {
+	b := BadTestStruct3(3)
+	var n BadTestStruct3
+	if errs := RedisKeyTester(b, "test-bad-struct3:", "3"); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
+	if errs := RedisValueTester(b, n, func(l BadTestStruct3, r BadTestStruct3) bool { return false }); len(errs) == 0 {
+		t.Errorf("RedisValueTester should have failed for BadTestStruct3")
 	}
 }
