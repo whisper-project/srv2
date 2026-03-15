@@ -15,32 +15,34 @@ import (
 )
 
 func TestS3PutGetListDeleteEncryptedBlob(t *testing.T) {
-	folderName := GetConfig().AwsReportFolder
-	if folderName == "" {
-		t.Skip("Skipping S3 test because no aws report folder has been set")
+	env := GetConfig()
+	root := env.AwsRootPath
+	if root == "" {
+		t.Skip("Skipping S3 test because no AWS root path has been set")
 	}
+	parentPath := env.Name + "/" + "testing"
 	blobName := NewId("test-blob-")
 	content := "This is a test. This is only a test."
 	inStream := strings.NewReader(content)
-	err := S3PutEncryptedBlob(context.Background(), folderName, blobName, inStream)
+	err := S3PutEncryptedBlob(context.Background(), parentPath, blobName, inStream)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() {
-		err = S3DeleteBlob(context.Background(), folderName, blobName)
+		err = S3DeleteBlob(context.Background(), parentPath, blobName)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}()
 	b := bytes.Buffer{}
-	err = S3GetEncryptedBlob(context.Background(), folderName, blobName, &b)
+	err = S3GetEncryptedBlob(context.Background(), parentPath, blobName, &b)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if b.String() != content {
 		t.Errorf("Retrieved content does not match original content: %q != %q", b.String(), content)
 	}
-	blobs, err := S3ListBlobs(context.Background(), folderName)
+	blobs, err := S3ListBlobs(context.Background(), parentPath)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,11 +56,11 @@ func TestS3PutGetListDeleteEncryptedBlob(t *testing.T) {
 	if !slices.Contains(blobs, blobName) {
 		t.Errorf("Can't find %q in: %q", blobName, blobs)
 	}
-	err = S3DeleteBlob(context.Background(), folderName, blobName)
+	err = S3DeleteBlob(context.Background(), parentPath, blobName)
 	if err != nil {
 		t.Fatal(err)
 	}
-	blobs, err = S3ListBlobs(context.Background(), folderName)
+	blobs, err = S3ListBlobs(context.Background(), parentPath)
 	if err != nil {
 		t.Fatal(err)
 	}

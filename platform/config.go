@@ -23,7 +23,7 @@ type Environment struct {
 	AwsAccessKey     string
 	AwsBucket        string
 	AwsRegion        string
-	AwsReportFolder  string
+	AwsRootPath      string
 	AwsSecretKey     string
 	DbKeyPrefix      string
 	DbUrl            string
@@ -131,7 +131,7 @@ func setEnvConfig(filename string) error {
 		AwsAccessKey:     os.Getenv("AWS_ACCESS_KEY"),
 		AwsBucket:        os.Getenv("AWS_BUCKET"),
 		AwsRegion:        os.Getenv("AWS_REGION"),
-		AwsReportFolder:  os.Getenv("AWS_REPORT_FOLDER"),
+		AwsRootPath:      os.Getenv("AWS_FOLDER_PATH"),
 		AwsSecretKey:     os.Getenv("AWS_SECRET_KEY"),
 		DbKeyPrefix:      os.Getenv("DB_KEY_PREFIX"),
 		DbUrl:            os.Getenv("REDIS_URL"),
