@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/whisper-project/srv2/platform"
@@ -24,20 +25,33 @@ func sLog() *zap.Logger {
 	return storage.ServerLogger
 }
 
-type ClientStatus struct {
-	ClientId string
-	IsOnline bool
-}
-
-type StatusReceiver chan ClientStatus
-
+// An AblyManager is a (singleton) pubsub manager implemented using Ably.
 type AblyManager struct {
+	mutex    sync.Mutex
 	sessions map[string]*session
 }
 
+var ablyManagerMutex sync.Mutex
+var ablyManager *AblyManager
+
+// GetAblyManager returns the Ably manager.
+func GetAblyManager() *AblyManager {
+	ablyManagerMutex.Lock()
+	defer ablyManagerMutex.Unlock()
+	if ablyManager == nil {
+		ablyManager = &AblyManager{
+			sessions: make(map[string]*session),
+		}
+	}
+	return ablyManager
+}
+
+// StartSession creates and starts a session for sessionId (unless one already exists).
 func (m *AblyManager) StartSession(sessionId string, cr protocol.ContentReceiver, sr StatusReceiver) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	if _, ok := m.sessions[sessionId]; ok {
-		return fmt.Errorf("session %s already started", sessionId)
+		return nil
 	}
 	s := &session{id: sessionId, cr: cr, sr: sr}
 	if err := s.start(); err != nil {
@@ -47,68 +61,80 @@ func (m *AblyManager) StartSession(sessionId string, cr protocol.ContentReceiver
 	return nil
 }
 
-func (m *AblyManager) EndSession(sessionId string) error {
-	s, ok := m.sessions[sessionId]
-	if !ok {
-		return fmt.Errorf("no session %s", sessionId)
-	}
-	s.end()
+// EndSession ends the session for sessionId (if it exists).
+func (m *AblyManager) EndSession(sessionId string) {
+	var s *session
+	defer func() {
+		if s != nil {
+			s.end()
+		}
+	}()
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	s, _ = m.sessions[sessionId]
 	delete(m.sessions, sessionId)
-	return nil
 }
 
+// getSession (internal) returns the existing session for id if there is one.
+func (m *AblyManager) getSession(id string) *session {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	s, _ := m.sessions[id]
+	return s
+}
+
+// AddWhisperer adds the client with Whisperer capability to the session for sessionId.
 func (m *AblyManager) AddWhisperer(sessionId, clientId string) (bool, error) {
-	s, ok := m.sessions[sessionId]
-	if !ok {
-		return false, fmt.Errorf("no session %s", sessionId)
+	s := m.getSession(sessionId)
+	if s == nil {
+		return false, fmt.Errorf("%w: %s", NoSessionError, sessionId)
 	}
 	return s.addWhisperer(clientId)
 }
 
+// AddListener adds the client with Listener capability to the session for sessionId.
 func (m *AblyManager) AddListener(sessionId, clientId string) (bool, error) {
-	s, ok := m.sessions[sessionId]
-	if !ok {
-		return false, fmt.Errorf("no session %s", sessionId)
+	s := m.getSession(sessionId)
+	if s == nil {
+		return false, fmt.Errorf("%w: %s", NoSessionError, sessionId)
 	}
 	return s.addListener(clientId)
 }
 
+// ClientToken return an Ably AuthTokenRequest appropriate to the given client in the given session.
 func (m *AblyManager) ClientToken(sessionId, clientId string) ([]byte, error) {
-	s, ok := m.sessions[sessionId]
-	if !ok {
-		return nil, fmt.Errorf("no session %s", sessionId)
+	s := m.getSession(sessionId)
+	if s == nil {
+		return nil, fmt.Errorf("%w: %s", NoSessionError, sessionId)
 	}
 	return s.clientToken(clientId)
 }
 
+// RemoveClient removes the given client from the given session
 func (m *AblyManager) RemoveClient(sessionId, clientId string) error {
-	s, ok := m.sessions[sessionId]
-	if !ok {
-		return fmt.Errorf("no session %s", sessionId)
+	s := m.getSession(sessionId)
+	if s == nil {
+		return fmt.Errorf("%w: %s", NoSessionError, sessionId)
 	}
 	return s.removeClient(clientId)
 }
 
+// Send sends the given packet to the given client in the given session.
 func (m *AblyManager) Send(sessionId, clientId, packet string) error {
-	s, ok := m.sessions[sessionId]
-	if !ok {
-		return fmt.Errorf("no session %s", sessionId)
+	s := m.getSession(sessionId)
+	if s == nil {
+		return fmt.Errorf("%w: %s", NoSessionError, sessionId)
 	}
 	return s.send(clientId, packet)
 }
 
+// Broadcast sends the given packet to all client currently in the given session.
 func (m *AblyManager) Broadcast(sessionId, packet string) error {
-	s, ok := m.sessions[sessionId]
-	if !ok {
-		return fmt.Errorf("no session %s", sessionId)
+	s := m.getSession(sessionId)
+	if s == nil {
+		return fmt.Errorf("%w: %s", NoSessionError, sessionId)
 	}
 	return s.broadcast(packet)
-}
-
-func NewAblyManager() *AblyManager {
-	return &AblyManager{
-		sessions: make(map[string]*session),
-	}
 }
 
 type session struct {

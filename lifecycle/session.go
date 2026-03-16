@@ -26,7 +26,7 @@ import (
 )
 
 var (
-	ably                = pubsub.NewAblyManager()
+	ably                = pubsub.GetAblyManager()
 	mock                = speech.NewMockManager()
 	sessions            = make(map[string]*Session)
 	AlreadyPresentError = fmt.Errorf("already present")
@@ -132,9 +132,8 @@ func ShutdownAllSessions(notify chan int) {
 // StartAllSuspendedSessions gets all suspended sessions running in this server instance.
 // It's meant to be invoked as a goroutine, and stops when there are no more suspended sessions.
 func StartAllSuspendedSessions() {
-	timeout := 30 * time.Second
 	for {
-		id, err := storage.WaitForSuspendedSession(timeout)
+		id, err := storage.WaitForSuspendedSession(30)
 		if err != nil {
 			sLog().Error("retrieve suspended session failure", zap.Error(err))
 			return
@@ -172,9 +171,7 @@ func (s *Session) Shutdown(notify chan string) {
 	go func() {
 		time.Sleep(10 * time.Second)
 		s.cancel()
-		if err := s.Pubsub.EndSession(s.Id); err != nil {
-			sLog().Error("ably session end failure", zap.String("sessionId", s.Id), zap.Error(err))
-		}
+		s.Pubsub.EndSession(s.Id)
 		if err := storage.SaveSessionState(s.state); err != nil {
 			sLog().Error("session suspend failure", zap.String("sessionId", s.Id), zap.Error(err))
 		}
@@ -194,10 +191,7 @@ func (s *Session) End() string {
 			zap.String("sessionId", s.Id), zap.Error(err))
 	}
 	s.cancel()
-	if err := s.Pubsub.EndSession(s.Id); err != nil {
-		sLog().Error("ably session end failure",
-			zap.String("sessionId", s.Id), zap.Error(err))
-	}
+	s.Pubsub.EndSession(s.Id)
 	if err := s.saveTranscript(); err != nil {
 		sLog().Error("session save transcript failure",
 			zap.String("sessionId", s.Id), zap.Error(err))
