@@ -51,6 +51,13 @@ func TestProcessLiveChunk(t *testing.T) {
 			"world!",
 			nil,
 		},
+		{
+			"Chunk doesn't affect live",
+			"hello!",
+			ContentChunk{Offset: CoPlaySound, Text: "sound-name"},
+			"hello!",
+			nil,
+		},
 	}
 
 	for _, tt := range tests {
@@ -78,6 +85,12 @@ func TestDiffLines(t *testing.T) {
 		new      string
 		expected []ContentChunk
 	}{
+		{
+			"Base case - lines differ",
+			"here is live text",
+			"here is new live text",
+			[]ContentChunk{{Offset: len("here is "), Text: "new live text"}},
+		},
 		{
 			"Identical strings",
 			"test",
