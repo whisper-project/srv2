@@ -182,10 +182,9 @@ func GetOwnedConversationsNameToIdMap(profileId string) (map[string]string, erro
 // Everything is saved to storage.
 //
 // It's an error to call this if there is already a profile for the given hashedEmail.
-func CreateNewUser(clientId, clientType, name, hashedEmail string) (*Profile, error) {
-	id := platform.NewId("profile-")
+func CreateNewUser(profileId, clientId, clientType, name, hashedEmail string) (*Profile, error) {
 	p := &Profile{
-		Id:        id,
+		Id:        profileId,
 		Name:      name,
 		EmailHash: hashedEmail,
 		Secret:    uuid.NewString(),
@@ -200,13 +199,13 @@ func CreateNewUser(clientId, clientType, name, hashedEmail string) (*Profile, er
 		}
 		// notest
 		_ = RemoveEmailProfile(hashedEmail)
-		_ = DeleteProfile(id)
+		_ = DeleteProfile(profileId)
 	}()
-	if err := SetEmailProfile(hashedEmail, id); err != nil {
+	if err := SetEmailProfile(hashedEmail, profileId); err != nil {
 		cleanup = true
 		return nil, err
 	}
-	if _, err := CreateNewOwnedConversation(id, "Conversation 1"); err != nil {
+	if _, err := CreateNewOwnedConversation(profileId, "Conversation 1"); err != nil {
 		cleanup = true
 		return nil, err
 	}

@@ -13,7 +13,7 @@ import (
 	"strconv"
 
 	"github.com/whisper-project/srv2/middleware"
-	platform2 "github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/srv2/platform"
 	"github.com/whisper-project/srv2/storage"
 
 	"gopkg.in/gomail.v2"
@@ -47,7 +47,8 @@ func PostLaunchHandler(c *gin.Context) {
 			return
 		}
 		// there's no existing profile, so create one and return it
-		p, err := storage.CreateNewUser(clientId, clientType, "", emailHash)
+		profileId := platform.NewId("profile-")
+		p, err := storage.CreateNewUser(profileId, clientId, clientType, "", emailHash)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -91,10 +92,10 @@ func PostRequestEmailHandler(c *gin.Context) {
 		c.JSON(400, gin.H{"error": "Invalid request"})
 		return
 	}
-	hash := platform2.MakeSha1(email)
+	hash := platform.MakeSha1(email)
 	// look for a profile that matches the email
 	ctx := c.Request.Context()
-	profileId, err := platform2.GetMapValue(ctx, storage.EmailProfileMap, hash)
+	profileId, err := platform.GetMapValue(ctx, storage.EmailProfileMap, hash)
 	if err != nil {
 		middleware.CtxLog(c).Error("Map failure", zap.String("email", hash), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
