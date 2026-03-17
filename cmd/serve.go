@@ -9,12 +9,13 @@ package cmd
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/whisper-project/srv2/platform"
 
 	"github.com/whisper-project/srv2/api/console"
 	"github.com/whisper-project/srv2/lifecycle"
-	"github.com/whisper-project/srv2/platform"
 )
 
 // serveCmd represents the serve command
@@ -23,14 +24,13 @@ var serveCmd = &cobra.Command{
 	Short: "Run the whisper server",
 	Long:  `Runs the whisper server until it's killed by signal.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.SetFlags(0)
-		env, _ := cmd.Flags().GetString("env")
+		if err := platform.SetConfig(environment); err != nil {
+			fmt.Fprintf(os.Stderr, "Can't run in environment %q: %v\n", environment, err)
+			os.Exit(1)
+		}
 		address, _ := cmd.Flags().GetString("address")
 		port, _ := cmd.Flags().GetString("port")
-		err := platform.SetConfig(env)
-		if err != nil {
-			panic(fmt.Sprintf("Can't load configuration: %v", err))
-		}
+		log.SetFlags(0)
 		serve(address, port)
 	},
 }
@@ -38,7 +38,6 @@ var serveCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(serveCmd)
 	serveCmd.Args = cobra.NoArgs
-	serveCmd.Flags().StringP("env", "e", "development", "The environment to run in")
 	serveCmd.Flags().StringP("address", "a", "127.0.0.1", "The IP address to listen on")
 	serveCmd.Flags().StringP("port", "p", "8080", "The port to listen on")
 }

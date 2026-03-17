@@ -13,11 +13,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var verbose int
+var environment string
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "whisper.golang",
-	Short: "Whisper.golang is the next generation Whisper server",
-	Long: `Whisper.golang, the next generation Whisper server,
+	Use:   "srv2",
+	Short: "srv2 is the next generation Whisper server",
+	Long: `srv2, the next generation Whisper server,
 provides back-end services used by the next release of Whisper clients.`,
 }
 
@@ -31,4 +34,6 @@ func Execute() {
 }
 
 func init() {
+	rootCmd.PersistentFlags().CountVarP(&verbose, "verbose", "v", "verbose output")
+	rootCmd.PersistentFlags().StringVarP(&environment, "environment", "e", "development", "whisper environment")
 }
