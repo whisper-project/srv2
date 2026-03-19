@@ -21,8 +21,8 @@ func (c ControlChunk) String() string {
 	return fmt.Sprintf("%s|%s", c.Action, strings.Join(c.Args, "|"))
 }
 
-func ParseControlChunk(s string) ControlChunk {
-	left, right, found := strings.Cut(s, "|")
+func ParseControlChunk(data string) ControlChunk {
+	left, right, found := strings.Cut(data, "|")
 	if !found || right == "" {
 		return ControlChunk{Action: left, Args: nil}
 	}
@@ -35,7 +35,7 @@ type ContentChunk struct {
 }
 
 const (
-	CoNewline   = -1    // Shift current live Text to past Text (ignore chunk Text)
+	CoNewline   = -1    // Shift current live Text to past Text (chunk text is newline ID)
 	CoPlaySound = -2    // Play local sound resource named by the chunk Text
 	CoIgnore    = -1000 // Ignore this packet (used for recovery from transmission errors)
 )
@@ -64,14 +64,14 @@ func (c ContentChunk) DebugString() string {
 	return fmt.Sprintf("%s: %s", name, c.Text)
 }
 
-func ParseContentChunk(s string) ContentChunk {
-	left, right, found := strings.Cut(s, "|")
+func ParseContentChunk(data string) ContentChunk {
+	left, right, found := strings.Cut(data, "|")
 	if !found {
-		return ContentChunk{Offset: CoIgnore, Text: s}
+		return ContentChunk{Offset: CoIgnore, Text: data}
 	}
 	offset, err := strconv.Atoi(left)
 	if err != nil {
-		return ContentChunk{Offset: CoIgnore, Text: s}
+		return ContentChunk{Offset: CoIgnore, Text: data}
 	}
 	return ContentChunk{Offset: offset, Text: right}
 }
