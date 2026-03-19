@@ -6,28 +6,35 @@
 
 package protocol
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/whisper-project/srv2/platform"
+)
 
 // ProcessLiveChunk "plays" an incoming content chunk against the current live text.
 //
-// It produces as outputs the new live text and any created lines of past text.
+// It produces as outputs the new live text, any created lines of past text, and the ids of those created lines.
 //
 // Note that not all chunks actually change text. If you pass, for example, a chunk
 // that says to play a sound, it will have no effect.
 //
 // If the offset of the chunk is longer than the current live text, the missing
 // space is filled with '?' characters.
-func ProcessLiveChunk(oldLive string, chunk ContentChunk) (newLive string, newPast []string) {
+func ProcessLiveChunk(oldLive string, chunk ContentChunk) (newLive string, newPast []string, newPastIds []string) {
+	// offsets less than CoNewline don't change the live text
 	if chunk.Offset < CoNewline {
-		return oldLive, nil
+		return oldLive, nil, nil
 	}
+	// if this is a newline, we move the live text to past text and use the newline ID as the past text ID
 	if chunk.Offset == CoNewline {
-		return "", []string{oldLive}
+		return "", []string{oldLive}, []string{chunk.Text}
 	}
+	// this is a chunk that extends or shortens the live text
 	if chunk.Offset > len(oldLive) {
 		oldLive += strings.Repeat("?", chunk.Offset-len(oldLive))
 	}
-	return oldLive[0:chunk.Offset] + chunk.Text, nil
+	return oldLive[0:chunk.Offset] + chunk.Text, nil, nil
 }
 
 // DiffLines creates the chunks that are sent when a user, whose current live
@@ -62,7 +69,7 @@ func suffixToChunks(s string, start int) []ContentChunk {
 	result := make([]ContentChunk, 1, len(lines)*2-1)
 	result[0] = ContentChunk{Offset: start, Text: lines[0]}
 	for i := 1; i < len(lines); i++ {
-		result = append(result, ContentChunk{Offset: CoNewline, Text: ""})
+		result = append(result, ContentChunk{Offset: CoNewline, Text: platform.NewId("line-")})
 		result = append(result, ContentChunk{Offset: 0, Text: lines[i]})
 	}
 	return result

@@ -8,6 +8,8 @@ package protocol
 
 import (
 	"testing"
+
+	"github.com/go-test/deep"
 )
 
 // Tests for ControlChunk.String()
@@ -23,7 +25,7 @@ func TestControlChunk_String(t *testing.T) {
 			expected: "quit|",
 		},
 		{
-			name:     "Single action with single empty arg",
+			name:     "Single action with a single empty arg",
 			chunk:    ControlChunk{Action: "quit", Args: []string{""}},
 			expected: "quit|",
 		},
@@ -70,7 +72,7 @@ func TestParseControlChunk(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := ParseControlChunk(tt.input)
-			if result.Action != tt.expected.Action || !equalSlices(result.Args, tt.expected.Args) {
+			if result.Action != tt.expected.Action || deep.Equal(result.Args, tt.expected.Args) != nil {
 				t.Errorf("ParseControlChunk() failed, got %+v, want %+v", result, tt.expected)
 			}
 		})
@@ -191,13 +193,13 @@ func TestContentPacket_String(t *testing.T) {
 	}{
 		{
 			name:     "Valid packet",
-			packet:   ContentPacket{PacketId: "1", ClientId: "client123", Data: "3|x"},
-			expected: "1|client123|3|x",
+			packet:   ContentPacket{PacketId: "1", Data: "3|x"},
+			expected: "1|3|x",
 		},
 		{
 			name:     "Empty fields",
-			packet:   ContentPacket{PacketId: "", ClientId: "", Data: ""},
-			expected: "||",
+			packet:   ContentPacket{PacketId: "", Data: ""},
+			expected: "|",
 		},
 	}
 
@@ -219,23 +221,18 @@ func TestParseContentPacket(t *testing.T) {
 	}{
 		{
 			name:     "Valid input",
-			input:    "1|client123|3|x",
-			expected: ContentPacket{PacketId: "1", ClientId: "client123", Data: "3|x"},
+			input:    "1|3|x",
+			expected: ContentPacket{PacketId: "1", Data: "3|x"},
 		},
 		{
 			name:     "Missing data",
-			input:    "1|client123|",
-			expected: ContentPacket{PacketId: "1", ClientId: "client123", Data: ""},
+			input:    "1|",
+			expected: ContentPacket{PacketId: "1", Data: ""},
 		},
 		{
 			name:     "Packet ID only",
-			input:    "MalformedInput",
-			expected: ContentPacket{PacketId: "MalformedInput", ClientId: "", Data: ""},
-		},
-		{
-			name:     "IDs only",
-			input:    "packet1|client1",
-			expected: ContentPacket{PacketId: "packet1", ClientId: "client1", Data: ""},
+			input:    "packet1",
+			expected: ContentPacket{PacketId: "packet1", Data: ""},
 		},
 	}
 
@@ -247,17 +244,4 @@ func TestParseContentPacket(t *testing.T) {
 			}
 		})
 	}
-}
-
-// Helper to compare slices
-func equalSlices(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

@@ -35,7 +35,7 @@ type ContentChunk struct {
 }
 
 const (
-	CoNewline   = -1    // Shift current live Text to past Text (chunk text is newline ID)
+	CoNewline   = -1    // Shift current live Text to past Text (chunk text is line ID)
 	CoPlaySound = -2    // Play local sound resource named by the chunk Text
 	CoIgnore    = -1000 // Ignore this packet (used for recovery from transmission errors)
 )
@@ -78,24 +78,19 @@ func ParseContentChunk(data string) ContentChunk {
 
 type ContentPacket struct {
 	PacketId string
-	ClientId string
 	Data     string
 }
 
 type ContentReceiver chan ContentPacket
 
 func (c ContentPacket) String() string {
-	return fmt.Sprintf("%s|%s|%s", c.PacketId, c.ClientId, c.Data)
+	return fmt.Sprintf("%s|%s", c.PacketId, c.Data)
 }
 
 func ParseContentPacket(s string) ContentPacket {
-	packetId, right, found := strings.Cut(s, "|")
+	packetId, data, found := strings.Cut(s, "|")
 	if !found {
-		return ContentPacket{PacketId: packetId, ClientId: "", Data: ""}
+		return ContentPacket{PacketId: packetId, Data: ""}
 	}
-	clientId, data, found := strings.Cut(right, "|")
-	if !found {
-		return ContentPacket{PacketId: packetId, ClientId: clientId, Data: ""}
-	}
-	return ContentPacket{PacketId: packetId, ClientId: clientId, Data: data}
+	return ContentPacket{PacketId: packetId, Data: data}
 }
