@@ -31,6 +31,7 @@ type Environment struct {
 	HttpPort         int
 	HttpScheme       string
 	Name             string
+	ResembleToken    string
 	SmtpCredId       string
 	SmtpCredSecret   string
 	SmtpHost         string
@@ -50,6 +51,7 @@ var (
 		HttpPort:         8080,
 		HttpScheme:       "http",
 		Name:             "CI",
+		ResembleToken:    "",
 		SmtpCredId:       "",
 		SmtpCredSecret:   "",
 		SmtpHost:         "",
@@ -81,7 +83,7 @@ func GetConfig() Environment {
 // loaded from a `.env*` file. Only the first character of the name matters,
 // and it must be one of 'd' (for `.env`), 's' for `.env.staging`,
 // 'p' for `.env.production`, or 't' for `.env.testing`. And the file is looked
-// for not only in the current directory, but in 4 levels of parent directory.
+// for not only in the current directory but also four levels of parent.
 func SetConfig(name string) error {
 	// notest
 	if name == "" {
@@ -139,6 +141,7 @@ func setEnvConfig(filename string) error {
 		HttpPort:         getEnvPort(os.Getenv("HTTP_PORT"), 8080),
 		HttpScheme:       os.Getenv("HTTP_SCHEME"),
 		Name:             os.Getenv("ENVIRONMENT_NAME"),
+		ResembleToken:    os.Getenv("RESEMBLE_TOKEN"),
 		SmtpCredId:       os.Getenv("SMTP_CRED_ID"),
 		SmtpCredSecret:   os.Getenv("SMTP_CRED_SECRET"),
 		SmtpHost:         os.Getenv("SMTP_HOST"),
@@ -157,5 +160,5 @@ func FindEnvFile(name string) (string, error) {
 			return d, nil
 		}
 	}
-	return "", fmt.Errorf("no file %q found in current directory or 4 levels of parent", name)
+	return "", fmt.Errorf("no file %q found in the current directory or four levels of parent", name)
 }
