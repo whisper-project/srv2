@@ -27,7 +27,7 @@ func S3GetEncryptedBlob(ctx context.Context, parentPath, blobName string, outStr
 	if err != nil {
 		return err
 	}
-	client, err := s3GetClient(&env)
+	client, err := s3GetClient(env)
 	if err != nil {
 		return err
 	}
@@ -58,7 +58,7 @@ func S3PutEncryptedBlob(ctx context.Context, parentPath, blobName string, inStre
 	if err != nil {
 		return err
 	}
-	client, err := s3GetClient(&env)
+	client, err := s3GetClient(env)
 	if err != nil {
 		return err
 	}
@@ -102,7 +102,7 @@ func S3PutEncryptedBlob(ctx context.Context, parentPath, blobName string, inStre
 
 func S3DeleteBlob(ctx context.Context, parentPath, blobName string) error {
 	env := GetConfig()
-	client, err := s3GetClient(&env)
+	client, err := s3GetClient(env)
 	if err != nil {
 		return err
 	}
@@ -119,7 +119,7 @@ func S3DeleteBlob(ctx context.Context, parentPath, blobName string) error {
 
 func S3ListBlobs(ctx context.Context, parentPath string) ([]string, error) {
 	env := GetConfig()
-	client, err := s3GetClient(&env)
+	client, err := s3GetClient(env)
 	if err != nil {
 		return nil, err
 	}

@@ -45,17 +45,17 @@ func TestSetVaultConfig(t *testing.T) {
 	}
 	curdir, err := os.Getwd()
 	if err != nil {
-		t.Fatalf("Failed to get current working directory")
+		t.Fatalf("Failed to get the current working directory")
 	}
-	env := GetConfig()
+	env := *GetConfig()
+	defer func() { loadedConfig = env }()
 	if err := os.Chdir(d); err != nil {
-		t.Fatalf("Failed to chdir into parent directory")
+		t.Fatalf("Failed to chdir into the parent directory")
 	}
 	if err := SetConfig(""); err != nil {
 		t.Errorf("Failed to load vault environment")
 	}
-	loadedConfig = env
 	if err := os.Chdir(curdir); err != nil {
-		t.Fatalf("Failed to returnto original working directory")
+		t.Fatalf("Failed to return to the original working directory")
 	}
 }

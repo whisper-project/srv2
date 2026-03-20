@@ -63,14 +63,18 @@ func init() {
 	_ = SetConfig("d")
 }
 
-// GetConfig returns the current Environment.
+// GetConfig returns a pointer to the current Environment.
+//
+// The use of a pointer allows the Environment to be altered.
+// This is typically done for testing purposes. Any alterations
+// will be overwritten at the next SetConfig call.
 //
 // There is always a current environment. When this module is first loaded,
 // it attempts to load a development environment via `SetConfig("d")`.
 // If that fails, it falls back to a `CI` environment that has no
 // secret values in it.
-func GetConfig() Environment {
-	return loadedConfig
+func GetConfig() *Environment {
+	return &loadedConfig
 }
 
 // SetConfig sets the environment based on the dotenv file of the specified name.
