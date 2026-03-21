@@ -54,6 +54,7 @@ func (rc *resembleCore) getProfileToken(ctx context.Context, profileId string) s
 	token, err := platform.GetMapValue(ctx, rc.profileTokens, profileId)
 	if token == "" {
 		if err != nil {
+			// notest
 			sLog().Error("storage failure (get) on Resemble profile token",
 				zap.String("profileId", profileId), zap.Error(err))
 		}
@@ -75,6 +76,7 @@ func (rc *resembleCore) registerProfileVoice(ctx context.Context, profileId stri
 func (rc *resembleCore) getProfileVoice(ctx context.Context, profileId string) resembleVoice {
 	s, err := platform.GetMapValue(ctx, rc.profileVoices, profileId)
 	if err != nil {
+		// notest
 		sLog().Error("storage failure (get) on Resemble profile voice",
 			zap.String("profileId", profileId), zap.Error(err))
 		return resembleDefaultVoiceItem
@@ -132,23 +134,27 @@ func (rc *resembleCore) listVoices(ctx context.Context, profileId string) ([]res
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		// notest
 		sLog().Error("failed to list voices",
 			zap.String("profileId", profileId), zap.Error(err))
 		return nil, fmt.Errorf("failed to list voices: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		// notest
 		sLog().Error("failed to list voices",
 			zap.String("profileId", profileId), zap.Int("status", resp.StatusCode))
 		return nil, fmt.Errorf("failed to list voices: %s", resp.Status)
 	}
 	var response resembleListVoicesResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		// notest
 		sLog().Error("failed to decode resemble voices",
 			zap.String("profileId", profileId), zap.Error(err))
 		return nil, fmt.Errorf("failed to decode resemble voices: %w", err)
 	}
 	if !response.Success {
+		// notest
 		sLog().Error("got a non-success response to the list voices request",
 			zap.String("profileId", profileId))
 		return nil, fmt.Errorf("failed to list voices: %s", resp.Status)
@@ -172,20 +178,24 @@ func (rc *resembleCore) textToSpeech(ctx context.Context, profileId, text string
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		// notest
 		sLog().Error("failed to perform a TTS request", zap.Error(err))
 		return nil, fmt.Errorf("failure during text-to-speech: %w", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		// notest
 		sLog().Error("failed to perform a TTS request", zap.Int("status", resp.StatusCode))
 		return nil, fmt.Errorf("failure during text-to-speech: %s", resp.Status)
 	}
 	var response resembleTtsResponse
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		// notest
 		sLog().Error("failed to decode TTS response", zap.Error(err))
 		return nil, fmt.Errorf("failure during text-to-speech: %w", err)
 	}
 	if !response.Success {
+		// notest
 		sLog().Error("TTS request got a non-success response",
 			zap.String("profileId", profileId), zap.String("text", text))
 		return nil, fmt.Errorf("TTS request failed")
@@ -231,10 +241,6 @@ type resembleTtsRequest struct {
 func (rb *resembleTtsRequest) Marshal() []byte {
 	b, _ := json.Marshal(rb)
 	return b
-}
-
-func (rb *resembleTtsRequest) Unmarshal(b []byte) {
-	_ = json.Unmarshal(b, rb)
 }
 
 type resembleTtsResponse struct {

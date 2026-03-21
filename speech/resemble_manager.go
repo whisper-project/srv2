@@ -43,10 +43,12 @@ func (rm *resembleManager) GenerateSpeech(ctx context.Context, profileId, speech
 		}()
 		b, err := rm.core.textToSpeech(ctx, profileId, text)
 		if err != nil {
+			// notest
 			sLog().Error("failed to generate speech", zap.String("speechId", speechId), zap.Error(err))
 			return
 		}
 		if err = rm.generatedSpeech.AddBlob(ctx, speechId, b); err != nil {
+			// notest
 			sLog().Error("failed to cache generated speech", zap.String("speechId", speechId), zap.Error(err))
 		}
 	}()
@@ -57,6 +59,7 @@ func (rm *resembleManager) GeneratedSpeech(ctx context.Context, speechId string)
 	if ok {
 		select {
 		case <-ctx.Done():
+			// notest
 			sLog().Error("speech retrieval canceled", zap.String("speechId", speechId))
 			return nil, ctx.Err()
 		case <-signal:
