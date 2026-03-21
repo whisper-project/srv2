@@ -21,39 +21,32 @@ import (
 	"go.uber.org/zap"
 )
 
-func sLog() *zap.Logger {
-	return storage.ServerLogger
-}
-
-// An AblyManager is a (singleton) pubsub manager implemented using Ably.
-type AblyManager struct {
+// An ablyManager is a (singleton) pubsub manager implemented using Ably.
+type ablyManager struct {
 	mutex    sync.Mutex
 	sessions map[string]*session
 }
 
-var ablyManagerMutex sync.Mutex
-var ablyManager *AblyManager
+var ablyManagerInstance *ablyManager
 
 // GetAblyManager returns the Ably manager.
-func GetAblyManager() *AblyManager {
-	ablyManagerMutex.Lock()
-	defer ablyManagerMutex.Unlock()
-	if ablyManager == nil {
-		ablyManager = &AblyManager{
+func GetAblyManager() Manager {
+	if ablyManagerInstance == nil {
+		ablyManagerInstance = &ablyManager{
 			sessions: make(map[string]*session),
 		}
 	}
-	return ablyManager
+	return ablyManagerInstance
 }
 
 // StartSession creates and starts a session for sessionId (unless one already exists).
-func (m *AblyManager) StartSession(sessionId string, cr protocol.ContentReceiver, sr StatusReceiver) error {
+func (m *ablyManager) StartSession(sessionId string, cr protocol.ContentReceiver, sr StatusReceiver) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	if _, ok := m.sessions[sessionId]; ok {
 		return nil
 	}
-	s := &session{id: sessionId, cr: cr, sr: sr}
+	s := &session{id: sessionId, cr: cr, sr: sr, participants: make(map[string]*participant)}
 	if err := s.start(); err != nil {
 		return err
 	}
@@ -62,7 +55,7 @@ func (m *AblyManager) StartSession(sessionId string, cr protocol.ContentReceiver
 }
 
 // EndSession ends the session for sessionId (if it exists).
-func (m *AblyManager) EndSession(sessionId string) {
+func (m *ablyManager) EndSession(sessionId string) {
 	var s *session
 	defer func() {
 		if s != nil {
@@ -76,7 +69,7 @@ func (m *AblyManager) EndSession(sessionId string) {
 }
 
 // getSession (internal) returns the existing session for id if there is one.
-func (m *AblyManager) getSession(id string) *session {
+func (m *ablyManager) getSession(id string) *session {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	s, _ := m.sessions[id]
@@ -84,7 +77,8 @@ func (m *AblyManager) getSession(id string) *session {
 }
 
 // AddWhisperer adds the client with Whisperer capability to the session for sessionId.
-func (m *AblyManager) AddWhisperer(sessionId, clientId string) (bool, error) {
+// Returns whether the client is already attached to the session.
+func (m *ablyManager) AddWhisperer(sessionId, clientId string) (bool, error) {
 	s := m.getSession(sessionId)
 	if s == nil {
 		return false, fmt.Errorf("%w: %s", NoSessionError, sessionId)
@@ -93,7 +87,7 @@ func (m *AblyManager) AddWhisperer(sessionId, clientId string) (bool, error) {
 }
 
 // AddListener adds the client with Listener capability to the session for sessionId.
-func (m *AblyManager) AddListener(sessionId, clientId string) (bool, error) {
+func (m *ablyManager) AddListener(sessionId, clientId string) (bool, error) {
 	s := m.getSession(sessionId)
 	if s == nil {
 		return false, fmt.Errorf("%w: %s", NoSessionError, sessionId)
@@ -102,7 +96,7 @@ func (m *AblyManager) AddListener(sessionId, clientId string) (bool, error) {
 }
 
 // ClientToken return an Ably AuthTokenRequest appropriate to the given client in the given session.
-func (m *AblyManager) ClientToken(sessionId, clientId string) ([]byte, error) {
+func (m *ablyManager) ClientToken(sessionId, clientId string) ([]byte, error) {
 	s := m.getSession(sessionId)
 	if s == nil {
 		return nil, fmt.Errorf("%w: %s", NoSessionError, sessionId)
@@ -111,7 +105,7 @@ func (m *AblyManager) ClientToken(sessionId, clientId string) ([]byte, error) {
 }
 
 // RemoveClient removes the given client from the given session
-func (m *AblyManager) RemoveClient(sessionId, clientId string) error {
+func (m *ablyManager) RemoveClient(sessionId, clientId string) error {
 	s := m.getSession(sessionId)
 	if s == nil {
 		return fmt.Errorf("%w: %s", NoSessionError, sessionId)
@@ -119,28 +113,30 @@ func (m *AblyManager) RemoveClient(sessionId, clientId string) error {
 	return s.removeClient(clientId)
 }
 
-// Send sends the given packet to the given client in the given session.
-func (m *AblyManager) Send(sessionId, clientId, packet string) error {
+// SendControl sends the given control chunk to the given client in the given session.
+func (m *ablyManager) SendControl(sessionId, clientId string, chunk protocol.ControlChunk) error {
 	s := m.getSession(sessionId)
 	if s == nil {
 		return fmt.Errorf("%w: %s", NoSessionError, sessionId)
 	}
-	return s.send(clientId, packet)
+	return s.sendControl(clientId, chunk)
 }
 
-// Broadcast sends the given packet to all client currently in the given session.
-func (m *AblyManager) Broadcast(sessionId, packet string) error {
+// BroadcastControl sends the given control chunk to all the clients currently in the given session.
+func (m *ablyManager) BroadcastControl(sessionId string, chunk protocol.ControlChunk) error {
 	s := m.getSession(sessionId)
 	if s == nil {
 		return fmt.Errorf("%w: %s", NoSessionError, sessionId)
 	}
-	return s.broadcast(packet)
+	return s.broadcastControl(chunk)
 }
 
+// A pubsub session.
 type session struct {
 	id              string
 	cr              protocol.ContentReceiver
 	sr              StatusReceiver
+	participants    map[string]*participant
 	client          *ably.Realtime
 	controlId       string
 	presenceId      string
@@ -148,9 +144,13 @@ type session struct {
 	controlChannel  *ably.RealtimeChannel
 	presenceChannel *ably.RealtimeChannel
 	contentChannel  *ably.RealtimeChannel
-	participants    map[string]*participant
 }
 
+// A participant in a session.
+//
+// Participants may not be authorized to be part of the session;
+// they may be in the "waiting" list while the Whisperer decides
+// whether to approve them or not.
 type participant struct {
 	clientId   string
 	canWhisper bool
@@ -158,6 +158,11 @@ type participant struct {
 	attached   bool
 }
 
+// Starting a session creates a new client and then connects it
+// to the content and presence channels
+// for the session. The content channel is where the Whisperer will
+// talk and also where the generated speech will be sent. The presence
+// channel is used to track when participants join and leave.
 func (s *session) start() error {
 	sLog().Info("opening ably client", zap.String("sessionId", s.id))
 	hubId := fmt.Sprintf("%s:%s", storage.ServerId, s.id)
@@ -188,9 +193,9 @@ func (s *session) start() error {
 		return err
 	}
 	contentChannel.Once(ably.ChannelEventAttached, func(_ ably.ChannelStateChange) {
-		sLog().Info("ably content channel attached", zap.String("sessionId", s.id))
+		sLog().Info("attached the Ably content channel", zap.String("sessionId", s.id))
 		// signal the content receiver that we are attached
-		s.cr <- protocol.ContentPacket{}
+		s.cr <- protocol.AttachPacket
 	})
 	_, err = contentChannel.SubscribeAll(context.Background(), s.contentReceiver())
 	if err != nil {
@@ -204,24 +209,32 @@ func (s *session) start() error {
 	return nil
 }
 
+// Ending a session detaches from the content and presence channels
+// and then closes the session client.
 func (s *session) end() {
 	sLog().Info("ending session", zap.String("sessionId", s.id))
 	ctx := context.Background()
 	if err := s.contentChannel.Detach(ctx); err != nil {
-		sLog().Error("ably failure detaching content channel",
+		sLog().Error("ably failure detaching the content channel",
 			zap.String("sessionId", s.id), zap.Error(err))
 	}
 	if err := s.presenceChannel.Detach(ctx); err != nil {
-		sLog().Error("ably failure detaching presence channel",
+		sLog().Error("ably failure detaching the presence channel",
 			zap.String("sessionId", s.id), zap.Error(err))
 	}
+	// Delay the client close to allow the detach operations to complete.
 	go func() {
 		time.Sleep(1 * time.Second)
 		s.client.Close()
 		sLog().Info("closed ably client", zap.String("sessionId", s.id))
 	}()
+	close(s.cr)
+	close(s.sr)
 }
 
+// addWhisperer ensures that the client has access to the session with
+// whispering privileges. Returns whether the client is already attached
+// to the session.
 func (s *session) addWhisperer(clientId string) (bool, error) {
 	if p, ok := s.participants[clientId]; ok {
 		p.canWhisper = true
@@ -234,6 +247,8 @@ func (s *session) addWhisperer(clientId string) (bool, error) {
 	return attached, nil
 }
 
+// addListener ensures that the client has access to the session with
+// listening privileges.
 func (s *session) addListener(clientId string) (bool, error) {
 	if p, ok := s.participants[clientId]; ok {
 		p.canListen = true
@@ -245,6 +260,8 @@ func (s *session) addListener(clientId string) (bool, error) {
 	return attached, nil
 }
 
+// addWaitLister adds the client as a participant but does not authorize them to
+// listen or whisper in the session.
 func (s *session) addWaitLister(clientId string) (bool, error) {
 	if p, ok := s.participants[clientId]; ok {
 		return p.attached, nil
@@ -255,6 +272,10 @@ func (s *session) addWaitLister(clientId string) (bool, error) {
 	return attached, nil
 }
 
+// clientToken generates a server-signed token request for the client with
+// appropriate privileges for the client. All clients can subscribe to the
+// control channel for the session, but only listeners and whisperers are
+// authorized to be in the content channel.
 func (s *session) clientToken(clientId string) ([]byte, error) {
 	p, ok := s.participants[clientId]
 	if !ok {
@@ -266,8 +287,7 @@ func (s *session) clientToken(clientId string) ([]byte, error) {
 	}
 	if p.canWhisper {
 		capabilities[s.contentId] = []string{"publish", "subscribe"}
-	}
-	if p.canListen {
+	} else if p.canListen {
 		capabilities[s.contentId] = []string{"subscribe"}
 	}
 	payload, err := json.Marshal(capabilities)
@@ -286,37 +306,43 @@ func (s *session) clientToken(clientId string) ([]byte, error) {
 	return payload, nil
 }
 
+// removeClient ensures the client is not a participant in the session.
+//
+// Removing a non-existent client is a no-op.
 func (s *session) removeClient(clientId string) error {
-	_, ok := s.participants[clientId]
-	if !ok {
-		return fmt.Errorf("unknown client: %s", clientId)
+	if _, ok := s.participants[clientId]; !ok {
+		return nil
 	}
 	delete(s.participants, clientId)
 	return nil
 }
 
-func (s *session) send(clientId, packet string) error {
+// sendControl sends a control channel chunk to the given client
+func (s *session) sendControl(clientId string, chunk protocol.ControlChunk) error {
 	p, ok := s.participants[clientId]
 	if !ok {
 		return fmt.Errorf("unknown client: %s", clientId)
 	}
-	err := s.controlChannel.Publish(context.Background(), p.clientId, packet)
+	err := s.controlChannel.Publish(context.Background(), p.clientId, chunk.String())
 	if err != nil {
-		sLog().Error("ably failure publishing to control channel",
+		sLog().Error("ably failure publishing to the control channel",
 			zap.String("sessionId", s.id), zap.String("clientId", p.clientId), zap.Error(err))
 	}
 	return err
 }
 
-func (s *session) broadcast(packet string) error {
-	err := s.controlChannel.Publish(context.Background(), "all", packet)
+// broadcastControl sends a control channel chunk to all clients.
+func (s *session) broadcastControl(chunk protocol.ControlChunk) error {
+	err := s.controlChannel.Publish(context.Background(), "all", chunk.String())
 	if err != nil {
-		sLog().Error("ably failure publishing to control channel",
+		sLog().Error("ably failure publishing to the control channel",
 			zap.String("sessionId", s.id), zap.Error(err))
 	}
 	return err
 }
 
+// updatePresence gets the latest presence information for the channel
+// and checks whether the given clientId is present.
 func (s *session) updatePresence(clientId string) bool {
 	msgs, err := s.presenceChannel.Presence.Get(context.Background())
 	if err != nil {
@@ -330,14 +356,19 @@ func (s *session) updatePresence(clientId string) bool {
 	return false
 }
 
+// contentReceiver transfers all messages received on the content channel
+// to the content receiver registered when the session was started.
 func (s *session) contentReceiver() func(*ably.Message) {
 	return func(msg *ably.Message) {
+		data, ok := msg.Data.(string)
+		if !ok {
+			data = protocol.ContentChunk{protocol.CoIgnore, "Invalid content data type"}.String()
+		}
 		packet := protocol.ContentPacket{
 			PacketId: msg.ID,
-			ClientId: msg.ClientID,
-			Data:     msg.String(),
+			Data:     data,
 		}
-		sLog().Debug("received content packet",
+		sLog().Debug("received a content packet",
 			zap.String("sessionId", s.id),
 			zap.Any("packet", packet),
 		)
@@ -345,13 +376,16 @@ func (s *session) contentReceiver() func(*ably.Message) {
 	}
 }
 
+// presenceReceiver watches for presence messages from participants
+// and, if their status changes, passes that status update to the
+// status receiver registered when the session was started.
 func (s *session) presenceReceiver() func(*ably.PresenceMessage) {
 	return func(msg *ably.PresenceMessage) {
 		p, ok := s.participants[msg.ClientID]
 		if !ok {
 			return
 		}
-		sLog().Debug("received presence message",
+		sLog().Debug("received a presence message",
 			zap.String("sessionId", s.id),
 			zap.String("clientId", msg.ClientID),
 			zap.String("action", msg.Action.String()),
@@ -363,8 +397,8 @@ func (s *session) presenceReceiver() func(*ably.PresenceMessage) {
 		case ably.PresenceActionLeave, ably.PresenceActionAbsent:
 			attached = false
 		case ably.PresenceActionUpdate:
-			// we shouldn't get these, because clients are not sending updates
-			sLog().Warn("received an unexpected presence message",
+			// we shouldn't get these because clients are not sending updates
+			sLog().Warn("received an unexpected presence update",
 				zap.String("sessionId", s.id),
 				zap.String("clientId", p.clientId),
 				zap.String("action", msg.Action.String()),

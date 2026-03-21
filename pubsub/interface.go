@@ -18,7 +18,13 @@ import (
 	"errors"
 
 	"github.com/whisper-project/srv2/protocol"
+	"github.com/whisper-project/srv2/storage"
+	"go.uber.org/zap"
 )
+
+func sLog() *zap.Logger {
+	return storage.ServerLogger
+}
 
 // The Manager interface is what each pubsub implementation provides.
 //
@@ -47,7 +53,7 @@ type Manager = interface {
 	// AddListener is called by the conversation manager to add a Listener to a session.
 	AddListener(sessionId, clientId string) (bool, error)
 	// ClientToken is called by the conversation manager after enrolling a client in a session
-	// in order to get the client an authorization token appropriate to its role in the pubsub session.
+	// to get the client an authorization token appropriate to its role in the pubsub session.
 	//
 	// If a pubsub manager does not use authorization with clients, this should return an empty
 	// token and no error.
@@ -59,16 +65,16 @@ type Manager = interface {
 	// (possibly by shutting down). The pubsub manager may hear from the client even after this
 	// call is made, but it should ignore/refuse any such interactions.
 	RemoveClient(sessionId, clientId string) error
-	// Send is called by the conversation manager to communicate with a specific client.
-	Send(sessionId, clientId, packet string) error
-	// Broadcast is called by the conversation manager to communicate with all clients.
-	Broadcast(sessionId, packet string) error
+	// SendControl is called by the conversation manager to send instructions to a specific client.
+	SendControl(sessionId, clientId string, chunk protocol.ControlChunk) error
+	// BroadcastControl is called by the conversation manager to send instructions to all clients.
+	BroadcastControl(sessionId string, chunk protocol.ControlChunk) error
 }
 
 // A NoSessionError (or actually an error wrapping it) is returned whenever a call
 // (other than StartSession or EndSession)
 // is made on a sessionId that hasn't been started.
-var NoSessionError error = errors.New("no such session")
+var NoSessionError = errors.New("no such session")
 
 // A ClientStatus gives the state of a client in a session.
 type ClientStatus struct {

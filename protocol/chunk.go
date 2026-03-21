@@ -94,3 +94,8 @@ func ParseContentPacket(s string) ContentPacket {
 	}
 	return ContentPacket{PacketId: packetId, Data: data}
 }
+
+var AttachPacket = ContentPacket{
+	PacketId: "0",
+	Data:     ContentChunk{Offset: CoIgnore, Text: "Channel attached"}.String(),
+}
