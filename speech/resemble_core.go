@@ -162,8 +162,6 @@ func (rc *resembleCore) textToSpeech(ctx context.Context, profileId, text string
 	token := rc.getProfileToken(context.Background(), profileId)
 	voice := rc.getProfileVoice(context.Background(), profileId)
 	body := resembleTtsRequest{voice.Uuid, text, "chatterbox-turbo", "mp3"}
-	s := string(body.Marshal())
-	fmt.Println(s)
 	req, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(body.Marshal()))
 	if err != nil {
 		sLog().Error("failed to create a TTS request", zap.Error(err))

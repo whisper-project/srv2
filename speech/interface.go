@@ -6,9 +6,19 @@
 
 package speech
 
-import "io"
+import (
+	"context"
+	"io"
+
+	"github.com/whisper-project/srv2/storage"
+	"go.uber.org/zap"
+)
+
+func sLog() *zap.Logger {
+	return storage.ServerLogger
+}
 
 type Manager interface {
-	GenerateSpeech(text string) (string, error)
-	GeneratedSpeech(id string) (io.Reader, error)
+	GenerateSpeech(ctx context.Context, profileId, speechId, text string)
+	GeneratedSpeech(ctx context.Context, speechId string) (io.Reader, error)
 }
