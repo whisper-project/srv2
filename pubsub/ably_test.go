@@ -9,176 +9,151 @@ package pubsub
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/whisper-project/srv2/platform"
 	"github.com/whisper-project/srv2/protocol"
 )
 
 func TestManagerGolden1(t *testing.T) {
-	manager := GetAblyManager()
-	sessionId := platform.NewId("test-session-")
-	whispererId := platform.NewId("test-whisperer-client-")
-	listenerId := platform.NewId("test-listener-client-")
-	whispererErrs := make(chan error, 10)
-	listenerErrs := make(chan error, 10)
-	whispererControls := make(chan protocol.ControlChunk, 10)
-	whispererContents := make(chan protocol.ContentChunk, 10)
-	listenerControls := make(chan protocol.ControlChunk, 10)
-	listenerContents := make(chan protocol.ContentChunk, 10)
-	sessionContent := make(protocol.ContentReceiver, 10)
-	sessionStatus := make(StatusReceiver, 10)
-	remoteSenders := 8
-	whispererActions := make(chan string)
-	listenerActions := make(chan string)
-	whispererRcs := &roboClientSession{
-		sessionId:      sessionId,
-		clientId:       whispererId,
-		isWhisperer:    true,
-		actionFeed:     whispererActions,
-		errorReports:   whispererErrs,
-		controlReports: whispererControls,
-		contentReports: whispererContents,
+	session, clients := MakeBots("golden-session-1", 1, 1)
+	actions := ActionList{
+		{-1, "start"},
+		{-1, "add-whisperer|whisper-bot-1"},
+		{-1, "add-listener|listener-bot-1"},
+		{1, "start"},
+		{0, "start"},
+		{0, "whisper|This is a test."},
+		{0, "whisper|\n"},
 	}
-	go whispererRcs.animate()
-	listenerRcs := &roboClientSession{
-		sessionId:      sessionId,
-		clientId:       listenerId,
-		isWhisperer:    false,
-		actionFeed:     listenerActions,
-		errorReports:   listenerErrs,
-		controlReports: listenerControls,
-		contentReports: listenerContents,
+	AnimateBots(t, actions, session, clients)
+}
+
+func MakeBots(sessionId string, wCount, lCount int) (*RoboSession, []*RoboClient) {
+	clients := make([]*RoboClient, wCount+lCount)
+	errorReports := make(chan RoboErrorReport, 10)
+	controlReports := make(chan RoboControlReport, 10)
+	contentReports := make(chan RoboContentReport, 10)
+	for i := 0; i < wCount+lCount; i++ {
+		id := fmt.Sprintf("whisper-bot-%d", i+1)
+		if i >= wCount {
+			id = fmt.Sprintf("listener-bot-%d", i+1-wCount)
+		}
+		clients[i] = &RoboClient{
+			sessionId:      sessionId,
+			clientId:       id,
+			isWhisperer:    i < wCount,
+			actionFeed:     make(chan string, 10),
+			errorReports:   errorReports,
+			controlReports: controlReports,
+			contentReports: contentReports,
+		}
 	}
-	go listenerRcs.animate()
-	if err := manager.StartSession(sessionId, sessionContent, sessionStatus); err != nil {
-		t.Fatalf("Failed to start session: %v", err)
+	session := &RoboSession{
+		sessionId:    sessionId,
+		actionFeed:   make(chan string, 10),
+		errorReports: errorReports,
+		cr:           make(protocol.ContentReceiver, 10),
+		sr:           make(StatusReceiver, 10),
 	}
-	if attached, err := manager.AddWhisperer(sessionId, whispererId); err != nil {
-		t.Fatalf("Failed to add whisperer: %v", err)
-	} else if attached {
-		t.Errorf("Whisperer is already attached??")
+	return session, clients
+}
+
+type ActionList []struct {
+	target int // 0-based client index, negative means it's a session action
+	action string
+}
+
+func AnimateBots(t *testing.T, actions ActionList, session *RoboSession, bots []*RoboClient) {
+	var wg sync.WaitGroup
+	wg.Go(session.animate)
+	for _, bot := range bots {
+		wg.Go(bot.animate)
 	}
-	if attached, err := manager.AddListener(sessionId, listenerId); err != nil {
-		t.Fatalf("Failed to add listener: %v", err)
-	} else if attached {
-		t.Errorf("Listener is already attached??")
-	}
-	actions := []string{
-		"listener|start",
-		"whisperer|start",
-		"whisperer|whisper|this is a test",
-		"whisperer|whisper|\n",
-	}
+	botsDone := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(botsDone)
+	}()
 	lastWhisper := ""
 	startupPacketReceived := false
 	timer := time.NewTimer(time.Second)
 	defer timer.Stop()
+	t.Logf("starting run at %s...", time.Now().Format("15:04:05.000"))
+	start := time.Now()
 	for index := 0; index >= 0; {
-		timer.Reset(time.Second)
 		select {
 		case <-timer.C:
 			if index >= len(actions) {
-				index = -1
+				t.Logf("%s: actions complete", time.Since(start))
+				for _, bot := range bots {
+					close(bot.actionFeed)
+				}
+				close(session.actionFeed)
+				continue
+			}
+			t.Logf("%s: sending action to %d: %s", time.Since(start), actions[index].target, actions[index].action)
+			target, action := actions[index].target, actions[index].action
+			index++
+			if target < 0 {
+				session.actionFeed <- action
+				timer.Reset(500 * time.Millisecond)
 				break
 			}
-			target, action, _ := strings.Cut(actions[index], "|")
-			index++
-			if target == "whisperer" {
-				if strings.HasPrefix(action, "whisper|") {
-					lastWhisper = action[len("whisper|"):]
-				}
-				whispererActions <- action
-			} else {
-				listenerActions <- action
+			if target >= len(bots) {
+				t.Fatalf("Invalid target: %d of %d", target, len(bots))
 			}
-		case err := <-whispererErrs:
-			t.Errorf("Whisperer error: %v", err)
-		case err := <-listenerErrs:
-			t.Errorf("Listener error: %v", err)
-		case chunk := <-whispererContents:
-			t.Errorf("Whisperer got content: %v", chunk)
-		case chunk := <-listenerContents:
-			analyzeContentChunk(t, chunk, lastWhisper, "Listener")
-		case status := <-sessionStatus:
-			fmt.Printf("Received status: %v\n", status)
-		case packet := <-sessionContent:
+			if strings.HasPrefix(action, "whisper|") {
+				lastWhisper = action[len("whisper|"):]
+			}
+			bots[target].actionFeed <- action
+			timer.Reset(time.Second)
+		case report := <-bots[0].errorReports:
+			t.Errorf("%s reports error: %v", report.clientId, report.err)
+		case report := <-bots[0].contentReports:
+			analyzeContentChunk(t, start, report.chunk, lastWhisper, report.clientId)
+		case status, more := <-session.sr:
+			if !more {
+				t.Logf("%s: session status receiver closed", time.Since(start))
+				index = -1
+				continue
+			}
+			t.Logf("%s: session sent status: %+v\n", time.Since(start), status)
+		case packet, more := <-session.cr:
+			if !more {
+				t.Logf("%s: session content receiver closed", time.Since(start))
+				index = -1
+				continue
+			}
 			if startupPacketReceived {
 				chunk := protocol.ParseContentChunk(packet.Data)
-				analyzeContentChunk(t, chunk, lastWhisper, "Session")
+				analyzeContentChunk(t, start, chunk, lastWhisper, "session")
 			} else {
 				startupPacketReceived = true
-				fmt.Printf("Received startup packet: %v\n", packet)
+				t.Logf("%s: session received startup packet: %#v\n", time.Since(start), packet)
 			}
 		}
 	}
-	close(whispererActions)
-	close(listenerActions)
-	manager.EndSession(sessionId)
-	for remoteSenders > 0 {
-		select {
-		case err, more := <-whispererErrs:
-			if !more {
-				remoteSenders--
-			} else {
-				t.Errorf("Received late Whisperer error: %v", err)
-			}
-		case err, more := <-listenerErrs:
-			if !more {
-				remoteSenders--
-			} else {
-				t.Errorf("Received late Listener error: %v", err)
-			}
-		case chunk, more := <-whispererControls:
-			if !more {
-				remoteSenders--
-			} else {
-				t.Errorf("Received late Whisperer control: %v", chunk)
-			}
-		case chunk, more := <-whispererContents:
-			if !more {
-				remoteSenders--
-			} else {
-				t.Errorf("Received Whisperer content: %v", chunk)
-			}
-		case chunk, more := <-listenerControls:
-			if !more {
-				remoteSenders--
-			} else {
-				t.Errorf("Received late Listener control: %v", chunk)
-			}
-		case chunk, more := <-listenerContents:
-			if !more {
-				remoteSenders--
-			} else {
-				t.Errorf("Received late Listener content: %v", chunk)
-			}
-		case status, more := <-sessionStatus:
-			if !more {
-				remoteSenders--
-			} else {
-				fmt.Printf("Received status: %v\n", status)
-			}
-		case packet, more := <-sessionContent:
-			if !more {
-				remoteSenders--
-			} else {
-				t.Errorf("Received late session content: %v", packet)
-			}
-		}
+	t.Logf("%s: waiting up to 5 seconds for bots to finish...", time.Since(start))
+	timer.Reset(5 * time.Second)
+	select {
+	case <-timer.C:
+		t.Logf("%s: timeout!", time.Since(start))
+	case <-botsDone:
+		t.Logf("%s: bots done!", time.Since(start))
 	}
 }
 
-func analyzeContentChunk(t *testing.T, chunk protocol.ContentChunk, lastWhisper string, source string) {
+func analyzeContentChunk(t *testing.T, start time.Time, chunk protocol.ContentChunk, lastWhisper string, source string) {
 	t.Helper()
 	if lastWhisper == "" {
-		t.Errorf("%s got content without a whisper: %v", source, chunk)
+		t.Errorf("%s: %s got content without a whisper: %v", time.Since(start), source, chunk)
 	} else if lastWhisper == "\n" && chunk.Offset == protocol.CoNewline && strings.HasPrefix(chunk.Text, "line-") {
-		fmt.Printf("%s got the correct newline chunk\n", source)
+		t.Logf("%s: %s got the correct newline chunk\n", time.Since(start), source)
 	} else if chunk.Offset == 0 && chunk.Text == lastWhisper {
-		fmt.Printf("%s got the correct text chunk for %q\n", source, lastWhisper)
+		t.Logf("%s: %s got the correct text chunk for %q\n", time.Since(start), source, lastWhisper)
 	} else {
-		t.Errorf("%s got an incorrect chunk after whisper %q: %v", source, lastWhisper, chunk)
+		t.Errorf("%s: %s got an incorrect chunk after whisper %q: %v", time.Since(start), source, lastWhisper, chunk)
 	}
 }
