@@ -72,24 +72,28 @@ func TestProcessLiveChunk(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualLive, actualPast, actualPastIds := ProcessLiveChunk(tt.oldLive, tt.chunk)
+			actualLive, actualPast, actualPastId := ProcessLiveChunk(tt.oldLive, tt.chunk)
 			if actualLive != tt.expectedLive {
 				t.Errorf("Expected live: %q, got: %q", tt.expectedLive, actualLive)
 			}
-			switch len(actualPast) {
-			case 0:
+			if actualPast == nil {
 				if tt.expectedPast != nil {
-					t.Errorf("Expected past: %v, got: []", tt.expectedPast)
+					t.Errorf("Expected past: %v, got: nil", tt.expectedPast[0])
 				}
-			case 1:
-				if tt.expectedPast == nil || tt.expectedPast[0] != actualPast[0] {
-					t.Errorf("Expected past: %v, got: %v", tt.expectedPast, actualPast)
+				if tt.expectedPastIds != nil {
+					t.Errorf("Expected pastId: %v, got: nil", tt.expectedPastIds[0])
 				}
-				if len(actualPastIds) != 1 || tt.expectedPastIds == nil || tt.expectedPastIds[0] != actualPastIds[0] {
-					t.Errorf("Expected pastIds: %v, got: %v", tt.expectedPastIds, actualPastIds)
+			} else {
+				if tt.expectedPast == nil {
+					t.Errorf("Expected past: %v, got: %v", tt.expectedPast, *actualPast)
+				} else if tt.expectedPast[0] != *actualPast {
+					t.Errorf("Expected past: %v, got: %v", tt.expectedPast[0], *actualPast)
 				}
-			default:
-				t.Errorf("Too many past lines: %q", actualPast)
+				if tt.expectedPastIds == nil {
+					t.Errorf("Expected pastId: %v, got: %v", tt.expectedPastIds, *actualPastId)
+				} else if tt.expectedPastIds[0] != *actualPastId {
+					t.Errorf("Expected pastId: %v, got: %v", tt.expectedPastIds[0], *actualPastId)
+				}
 			}
 		})
 	}

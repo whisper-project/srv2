@@ -14,21 +14,21 @@ import (
 
 // ProcessLiveChunk "plays" an incoming content chunk against the current live text.
 //
-// It produces as outputs the new live text, any created lines of past text, and the ids of those created lines.
+// It produces as outputs the new live text, any created line of past text, and the id of that line.
 //
 // Note that not all chunks actually change text. If you pass, for example, a chunk
 // that says to play a sound, it will have no effect.
 //
 // If the offset of the chunk is longer than the current live text, the missing
 // space is filled with '?' characters.
-func ProcessLiveChunk(oldLive string, chunk ContentChunk) (newLive string, newPast []string, newPastIds []string) {
+func ProcessLiveChunk(oldLive string, chunk ContentChunk) (newLive string, newPast *string, newPastId *string) {
 	// offsets less than CoNewline don't change the live text
 	if chunk.Offset < CoNewline {
 		return oldLive, nil, nil
 	}
 	// if this is a newline, we move the live text to past text and use the newline ID as the past text ID
 	if chunk.Offset == CoNewline {
-		return "", []string{oldLive}, []string{chunk.Text}
+		return "", &oldLive, &chunk.Text
 	}
 	// this is a chunk that extends or shortens the live text
 	if chunk.Offset > len(oldLive) {
