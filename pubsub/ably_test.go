@@ -21,7 +21,7 @@ func TestManagerGolden1(t *testing.T) {
 	actions := ActionList{
 		{-1, "start"},
 		{-1, "add-whisperer|whisper-bot-1"},
-		{-1, "add-listener|listener-bot-1"},
+		{-1, "add-listener|listen-bot-1"},
 		{1, "start"},
 		{0, "start"},
 		{0, "whisper|This is a test."},
@@ -36,7 +36,7 @@ func TestManagerGolden2(t *testing.T) {
 		{-1, "start"},
 		{-1, "add-whisperer|whisper-bot-1"},
 		{0, "start"},
-		{-1, "add-listener|listener-bot-1"},
+		{-1, "add-listener|listen-bot-1"},
 		{2, "start"},
 		{-1, "add-whisperer|whisper-bot-2"},
 		{1, "start"},
@@ -44,6 +44,31 @@ func TestManagerGolden2(t *testing.T) {
 		{1, "whisper|This is whisperer 2 speaking."},
 		{0, "whisper|\n"},
 		{1, "whisper|\n"},
+	}
+	AnimateBots(t, actions, session, clients)
+}
+
+func TestManagerWithDisconnect(t *testing.T) {
+	session, clients := MakeBots("disconnect-session", 1, 2)
+	actions := ActionList{
+		{-1, "start"},
+		{-1, "add-whisperer|whisper-bot-1"},
+		{-1, "add-listener|listen-bot-1"},
+		{-1, "add-listener|listen-bot-2"},
+		{0, "start"},
+		{1, "start"},
+		{2, "start"},
+		{0, "whisper|This is a test with both clients connected."},
+		{1, "disconnect"},
+		{0, "whisper|This is a test with Listener 1 disconnected."},
+		{1, "reconnect"},
+		{2, "disconnect"},
+		{0, "whisper|This is a test with Listener 2 disconnected."},
+		{1, "disconnect"},
+		{0, "whisper|This is a test with both Listeners disconnected."},
+		{1, "reconnect"},
+		{2, "reconnect"},
+		{0, "whisper|This is a test with both Listeners reconnected."},
 	}
 	AnimateBots(t, actions, session, clients)
 }
@@ -56,7 +81,7 @@ func MakeBots(sessionId string, wCount, lCount int) (*RoboSession, []*RoboClient
 	for i := 0; i < wCount+lCount; i++ {
 		id := fmt.Sprintf("whisper-bot-%d", i+1)
 		if i >= wCount {
-			id = fmt.Sprintf("listener-bot-%d", i+1-wCount)
+			id = fmt.Sprintf("listen-bot-%d", i+1-wCount)
 		}
 		clients[i] = &RoboClient{
 			sessionId:      sessionId,
@@ -94,7 +119,7 @@ func AnimateBots(t *testing.T, actions ActionList, session *RoboSession, bots []
 		wg.Wait()
 		close(botsDone)
 	}()
-	lastWhisper := ""
+	var whispers []string
 	startupPacketReceived := false
 	timer := time.NewTimer(time.Second)
 	defer timer.Stop()
@@ -123,14 +148,14 @@ func AnimateBots(t *testing.T, actions ActionList, session *RoboSession, bots []
 				t.Fatalf("Invalid target: %d of %d", target, len(bots))
 			}
 			if strings.HasPrefix(action, "whisper|") {
-				lastWhisper = action[len("whisper|"):]
+				whispers = append(whispers, action[len("whisper|"):])
 			}
 			bots[target].actionFeed <- action
 			timer.Reset(time.Second)
 		case report := <-bots[0].errorReports:
 			t.Errorf("%s reports error: %v", report.clientId, report.err)
 		case report := <-bots[0].contentReports:
-			analyzeContentChunk(t, start, report.chunk, lastWhisper, report.clientId)
+			analyzeContentChunk(t, start, report.chunk, whispers, report.clientId)
 		case status, more := <-session.sr:
 			if !more {
 				t.Logf("%s: session status receiver closed", time.Since(start))
@@ -146,7 +171,7 @@ func AnimateBots(t *testing.T, actions ActionList, session *RoboSession, bots []
 			}
 			if startupPacketReceived {
 				chunk := protocol.ParseContentChunk(packet.Data)
-				analyzeContentChunk(t, start, chunk, lastWhisper, "session")
+				analyzeContentChunk(t, start, chunk, whispers, "session")
 			} else {
 				startupPacketReceived = true
 				t.Logf("%s: session received startup packet: %#v\n", time.Since(start), packet)
@@ -163,15 +188,23 @@ func AnimateBots(t *testing.T, actions ActionList, session *RoboSession, bots []
 	}
 }
 
-func analyzeContentChunk(t *testing.T, start time.Time, chunk protocol.ContentChunk, lastWhisper string, source string) {
+func analyzeContentChunk(t *testing.T, start time.Time, chunk protocol.ContentChunk, whispers []string, source string) {
 	t.Helper()
-	if lastWhisper == "" {
-		t.Errorf("%s: %s got content without a whisper: %v", time.Since(start), source, chunk)
-	} else if lastWhisper == "\n" && chunk.Offset == protocol.CoNewline && strings.HasPrefix(chunk.Text, "line-") {
-		t.Logf("%s: %s got the correct newline chunk\n", time.Since(start), source)
-	} else if chunk.Offset == 0 && chunk.Text == lastWhisper {
-		t.Logf("%s: %s got the correct text chunk for %q\n", time.Since(start), source, lastWhisper)
-	} else {
-		t.Errorf("%s: %s got an incorrect chunk after whisper %q: %v", time.Since(start), source, lastWhisper, chunk)
+	for i := len(whispers) - 1; i >= 0; i-- {
+		whisper := whispers[i]
+		if whisper == "\n" && chunk.Offset != protocol.CoNewline {
+			continue
+		}
+		if whisper != chunk.Text {
+			continue
+		}
+		if i == len(whispers)-1 {
+			t.Logf("%s: %s got the the latest whisper %q\n", time.Since(start), source, whisper)
+			return
+		}
+		diff := len(whispers) - (i + 1)
+		t.Logf("%s: %s got the whisper %d before the latest: %q\n", time.Since(start), source, diff, whisper)
+		return
 	}
+	t.Errorf("%s: %s got text that was not whispered: %q", time.Since(start), source, chunk.Text)
 }

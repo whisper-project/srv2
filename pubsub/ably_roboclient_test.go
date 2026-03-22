@@ -131,20 +131,22 @@ func (rs *RoboSession) broadcastControl(chunk protocol.ControlChunk) {
 }
 
 type RoboClient struct {
-	clientId        string
-	sessionId       string
-	isWhisperer     bool
-	actionFeed      chan string
-	errorReports    chan RoboErrorReport
-	controlReports  chan RoboControlReport
-	contentReports  chan RoboContentReport
-	client          *ably.Realtime
-	controlId       string
-	contentId       string
-	presenceId      string
-	controlChannel  *ably.RealtimeChannel
-	contentChannel  *ably.RealtimeChannel
-	presenceChannel *ably.RealtimeChannel
+	clientId            string
+	sessionId           string
+	isWhisperer         bool
+	actionFeed          chan string
+	errorReports        chan RoboErrorReport
+	controlReports      chan RoboControlReport
+	contentReports      chan RoboContentReport
+	client              *ably.Realtime
+	controlId           string
+	contentId           string
+	presenceId          string
+	controlChannel      *ably.RealtimeChannel
+	controlUnsubscriber func()
+	contentChannel      *ably.RealtimeChannel
+	contentUnsubscriber func()
+	presenceChannel     *ably.RealtimeChannel
 }
 
 func (rc *RoboClient) animate() {
@@ -203,15 +205,18 @@ func (rc *RoboClient) start() {
 	if err = presenceChannel.Presence.Enter(context.Background(), "roboClient starting session"); err != nil {
 		rc.errorReports <- RoboErrorReport{rc.clientId, fmt.Errorf("enter error: %w", err)}
 	}
-	if _, err = controlChannel.SubscribeAll(context.Background(), rc.controlReceiver); err != nil {
+	var uControl, uContent func()
+	if uControl, err = controlChannel.SubscribeAll(context.Background(), rc.controlReceiver); err != nil {
 		rc.errorReports <- RoboErrorReport{rc.clientId, fmt.Errorf("subscribe error: %w", err)}
 	}
-	if _, err = contentChannel.SubscribeAll(context.Background(), rc.contentReceiver); err != nil {
+	if uContent, err = contentChannel.SubscribeAll(context.Background(), rc.contentReceiver); err != nil {
 		rc.errorReports <- RoboErrorReport{rc.clientId, fmt.Errorf("subscribe error: %w", err)}
 	}
 	rc.client = c
 	rc.controlChannel = controlChannel
+	rc.controlUnsubscriber = uControl
 	rc.contentChannel = contentChannel
+	rc.contentUnsubscriber = uContent
 	rc.presenceChannel = presenceChannel
 }
 
@@ -219,17 +224,25 @@ func (rc *RoboClient) disconnect() {
 	if err := rc.presenceChannel.Presence.Leave(context.Background(), "simulated disconnect"); err != nil {
 		rc.errorReports <- RoboErrorReport{rc.clientId, fmt.Errorf("leave error: %w", err)}
 	}
+	if err := rc.contentChannel.Detach(context.Background()); err != nil {
+		rc.errorReports <- RoboErrorReport{rc.clientId, fmt.Errorf("detach error: %w", err)}
+	}
 }
 
 func (rc *RoboClient) reconnect() {
+	if err := rc.contentChannel.Attach(context.Background()); err != nil {
+		rc.errorReports <- RoboErrorReport{rc.clientId, fmt.Errorf("resubscribe error: %w", err)}
+	}
 	if err := rc.presenceChannel.Presence.Enter(context.Background(), "simulated reconnect"); err != nil {
-		rc.errorReports <- RoboErrorReport{rc.clientId, fmt.Errorf("enter error: %w", err)}
+		rc.errorReports <- RoboErrorReport{rc.clientId, fmt.Errorf("reenter error: %w", err)}
 	}
 }
 
 func (rc *RoboClient) end() {
 	_ = rc.presenceChannel.Presence.Leave(context.Background(), "roboClient ending session")
+	rc.controlUnsubscriber()
 	_ = rc.controlChannel.Detach(context.Background())
+	rc.contentUnsubscriber()
 	_ = rc.contentChannel.Detach(context.Background())
 	// give above time to complete before closing client
 	go func() {
