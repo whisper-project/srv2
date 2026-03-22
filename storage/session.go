@@ -40,7 +40,7 @@ func RemoveSuspendedSession(id string) error {
 	return nil
 }
 
-// WaitForSuspendedSession blocks until a session is available in the front of the queue,
+// WaitForSuspendedSession blocks until a session is available in the front of the queue
 // or until the timeout (in seconds) is reached. It returns the session id, or "" on timeout.
 func WaitForSuspendedSession(timeout uint) (string, error) {
 	wait := time.Duration(timeout) * time.Second

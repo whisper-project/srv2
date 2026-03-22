@@ -33,7 +33,11 @@ var (
 )
 
 // A Session is one continuous instance of a conversation with a single
-// Whisperer and multiple Listeners.
+// Whisperer (possibly on multiple client devices) and multiple Listeners.
+//
+// Sessions are kept in memory on one server instance. If that server
+// shuts down while the session is in progress, it saves the session's
+// state so that it can be reloaded and resumed on a different server.
 type Session struct {
 	Id           string // the conversation ID this is a session for
 	Owner        string // the ID of the Whisperer that owns the conversation
