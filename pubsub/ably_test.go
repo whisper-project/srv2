@@ -30,6 +30,24 @@ func TestManagerGolden1(t *testing.T) {
 	AnimateBots(t, actions, session, clients)
 }
 
+func TestManagerGolden2(t *testing.T) {
+	session, clients := MakeBots("golden-session-2", 2, 1)
+	actions := ActionList{
+		{-1, "start"},
+		{-1, "add-whisperer|whisper-bot-1"},
+		{0, "start"},
+		{-1, "add-listener|listener-bot-1"},
+		{2, "start"},
+		{-1, "add-whisperer|whisper-bot-2"},
+		{1, "start"},
+		{0, "whisper|This is whisperer 1 speaking."},
+		{1, "whisper|This is whisperer 2 speaking."},
+		{0, "whisper|\n"},
+		{1, "whisper|\n"},
+	}
+	AnimateBots(t, actions, session, clients)
+}
+
 func MakeBots(sessionId string, wCount, lCount int) (*RoboSession, []*RoboClient) {
 	clients := make([]*RoboClient, wCount+lCount)
 	errorReports := make(chan RoboErrorReport, 10)
