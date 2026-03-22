@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 )
 
 // A Profile represents a user.

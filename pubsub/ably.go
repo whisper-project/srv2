@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/whisper-project/srv2/platform"
-	"github.com/whisper-project/srv2/protocol"
-	"github.com/whisper-project/srv2/storage"
+	"github.com/whisper-project/whisper.server2/platform"
+	"github.com/whisper-project/whisper.server2/protocol"
+	"github.com/whisper-project/whisper.server2/storage"
 
 	"github.com/ably/ably-go/ably"
 	"go.uber.org/zap"

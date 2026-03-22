@@ -2,7 +2,7 @@
 local/
 
 # built module main
-/srv2*
+/whisper.server2*
 
 # dotenv
 .env*

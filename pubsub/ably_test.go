@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/whisper-project/srv2/protocol"
+	"github.com/whisper-project/whisper.server2/protocol"
 )
 
 func TestManagerGolden1(t *testing.T) {

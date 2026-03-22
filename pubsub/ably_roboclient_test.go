@@ -15,8 +15,8 @@ import (
 	"time"
 
 	"github.com/ably/ably-go/ably"
-	"github.com/whisper-project/srv2/platform"
-	"github.com/whisper-project/srv2/protocol"
+	"github.com/whisper-project/whisper.server2/platform"
+	"github.com/whisper-project/whisper.server2/protocol"
 )
 
 type RoboErrorReport struct {

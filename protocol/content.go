@@ -9,7 +9,7 @@ package protocol
 import (
 	"strings"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 )
 
 // ProcessLiveChunk "plays" an incoming content chunk against the current live text.

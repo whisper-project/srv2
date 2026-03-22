@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/whisper-project/srv2/protocol"
+	"github.com/whisper-project/whisper.server2/protocol"
 
 	"github.com/go-test/deep"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 )
 
 func TestSuspendedSessionIdAddWaitRemoveWait(t *testing.T) {

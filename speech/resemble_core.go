@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 	"go.uber.org/zap"
 )
 

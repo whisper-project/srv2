@@ -12,10 +12,10 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 
-	"github.com/whisper-project/srv2/api/console"
-	"github.com/whisper-project/srv2/lifecycle"
+	"github.com/whisper-project/whisper.server2/api/console"
+	"github.com/whisper-project/whisper.server2/lifecycle"
 )
 
 // serveCmd represents the serve command

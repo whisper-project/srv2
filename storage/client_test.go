@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 )
 
 func TestActivityDataInterface(t *testing.T) {

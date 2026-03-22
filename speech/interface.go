@@ -10,7 +10,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/whisper-project/srv2/storage"
+	"github.com/whisper-project/whisper.server2/storage"
 	"go.uber.org/zap"
 )
 

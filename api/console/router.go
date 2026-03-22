@@ -8,7 +8,7 @@ package console
 
 import (
 	"github.com/gin-gonic/gin"
-	handlers2 "github.com/whisper-project/srv2/handlers"
+	handlers2 "github.com/whisper-project/whisper.server2/handlers"
 )
 
 func AddRoutes(r *gin.RouterGroup) {

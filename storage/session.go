@@ -13,8 +13,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/whisper-project/srv2/platform"
-	"github.com/whisper-project/srv2/protocol"
+	"github.com/whisper-project/whisper.server2/platform"
+	"github.com/whisper-project/whisper.server2/protocol"
 	"go.uber.org/zap"
 
 	"github.com/redis/go-redis/v9"

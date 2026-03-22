@@ -13,14 +13,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var verbose int
-var environment string
+var (
+	verbose     int
+	environment string
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "srv2",
-	Short: "srv2 is the next generation Whisper server",
-	Long: `srv2, the next generation Whisper server,
+	Use:   "whisper.server2",
+	Short: "whisper.server2 is the next generation Whisper server",
+	Long: `whisper.server2, the next generation Whisper server,
 provides back-end services used by the next release of Whisper clients.`,
 }
 

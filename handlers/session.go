@@ -10,8 +10,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/whisper-project/srv2/lifecycle"
-	"github.com/whisper-project/srv2/storage"
+	"github.com/whisper-project/whisper.server2/lifecycle"
+	"github.com/whisper-project/whisper.server2/storage"
 )
 
 func StartWhisperSessionHandler(c *gin.Context) {

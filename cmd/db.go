@@ -13,7 +13,7 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 
 	"github.com/spf13/cobra"
 )
@@ -33,14 +33,24 @@ func init() {
 }
 
 var listMatchingKeysCmd = &cobra.Command{
-	Use:   "list-matching-keys <regexp>",
-	Args:  cobra.ExactArgs(1),
-	Short: "List all keys that match a regexp",
+	Use: "list-matching-keys [regexp]",
+	Args: func(cmd *cobra.Command, args []string) error {
+		if len(args) > 1 {
+			return fmt.Errorf("accepts at most 1 arg(s), received %d", len(args))
+		}
+		return nil
+	},
+	Short: "List all keys that match an (optional) regexp",
 	Long: `List all the database keys that match a regular expression.
 The match is done anywhere in the key and is case-sensitive;
-use expression modifiers for anchoring or case insensitivity.`,
+use expression modifiers for anchoring or case insensitivity.
+If no regular expression is given, all keys are listed.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		pat, err := regexp.Compile(args[0])
+		re := ""
+		if len(args) > 0 {
+			re = args[0]
+		}
+		pat, err := regexp.Compile(re)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Invalid regular expression %q: %v\n", args[0], err)
 			os.Exit(1)

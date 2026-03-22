@@ -15,13 +15,13 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/whisper-project/srv2/speech"
+	"github.com/whisper-project/whisper.server2/speech"
 
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/srv2/protocol"
-	"github.com/whisper-project/srv2/pubsub"
-	"github.com/whisper-project/srv2/storage"
+	"github.com/whisper-project/whisper.server2/protocol"
+	"github.com/whisper-project/whisper.server2/pubsub"
+	"github.com/whisper-project/whisper.server2/storage"
 )
 
 var (

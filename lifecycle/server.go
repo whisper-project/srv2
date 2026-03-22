@@ -16,9 +16,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/srv2/middleware"
-	"github.com/whisper-project/srv2/platform"
-	"github.com/whisper-project/srv2/storage"
+	"github.com/whisper-project/whisper.server2/middleware"
+	"github.com/whisper-project/whisper.server2/platform"
+	"github.com/whisper-project/whisper.server2/storage"
 )
 
 // Startup takes a configured router and runs a server instance with that router.
