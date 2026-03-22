@@ -4,17 +4,84 @@
  * GNU Affero General Public License v3, reproduced in the LICENSE file.
  */
 
+// Package pubsub manages sessions of conversations.
+//
+// All the members of a session are subscribers to the
+// session data being published from the whisperer (typed packets) and from the
+// server (vocalized speech).
+//
+// Each available pubsub provider implements the same interface, and each
+// session uses one of the available providers.
 package pubsub
 
-import "github.com/whisper-project/srv2/protocol"
+import (
+	"errors"
 
-type Manager = interface {
-	StartSession(sessionId string, cr protocol.ContentReceiver, sr StatusReceiver) error
-	EndSession(sessionId string) error
-	AddWhisperer(sessionId, clientId string) (bool, error)
-	AddListener(sessionId, clientId string) (bool, error)
-	ClientToken(sessionId, clientId string) ([]byte, error)
-	RemoveClient(sessionId, clientId string) error
-	Send(sessionId, clientId, packet string) error
-	Broadcast(sessionId, packet string) error
+	"github.com/whisper-project/whisper.server2/protocol"
+	"github.com/whisper-project/whisper.server2/storage"
+	"go.uber.org/zap"
+)
+
+func sLog() *zap.Logger {
+	return storage.ServerLogger
 }
+
+// The Manager interface is what each pubsub implementation provides.
+//
+// The documentation here describes how these methods are used by the conversation
+// manager over the course of a session. The pubsub implementations will each
+// provide more detail about how they implement the methods.
+type Manager = interface {
+	// StartSession is called by the conversation manager whenever it starts a session
+	// for a conversation. The conversation manager must pass in channels on which
+	// the pubsub manager can send it the whispered session content and updates
+	// about client status in the session.
+	//
+	// The pubsub manager will never create more than one session for a given sessionId,
+	// so conversation managers needn't worry about race conditions leading them to start
+	// sessions more than once.
+	StartSession(sessionId string, cr protocol.ContentReceiver, sr StatusReceiver) error
+	// EndSession is called by the conversation manager to terminate an existing session.
+	//
+	// Like StartSession, it doesn't matter how many times this is called with the same sessionId.
+	EndSession(sessionId string)
+	// AddWhisperer is called by the conversation manager to add a Whisperer to a session.
+	//
+	// The same user may act as a Whisperer from multiple clients, so this may be called
+	// multiple times (with a different clientId each time) for the same session.
+	AddWhisperer(sessionId, clientId string) (bool, error)
+	// AddListener is called by the conversation manager to add a Listener to a session.
+	AddListener(sessionId, clientId string) (bool, error)
+	// ClientToken is called by the conversation manager after enrolling a client in a session
+	// to get the client an authorization token appropriate to its role in the pubsub session.
+	//
+	// If a pubsub manager does not use authorization with clients, this should return an empty
+	// token and no error.
+	//
+	// If a pubsub manager uses authorization leases, this will be called whenever the client needs
+	// to renew their lease.
+	ClientToken(sessionId, clientId string) ([]byte, error)
+	// RemoveClient is called by the conversation manager when a client opts out of a session
+	// (possibly by shutting down). The pubsub manager may hear from the client even after this
+	// call is made, but it should ignore/refuse any such interactions.
+	RemoveClient(sessionId, clientId string) error
+	// SendControl is called by the conversation manager to send instructions to a specific client.
+	SendControl(sessionId, clientId string, chunk protocol.ControlChunk) error
+	// BroadcastControl is called by the conversation manager to send instructions to all clients.
+	BroadcastControl(sessionId string, chunk protocol.ControlChunk) error
+}
+
+// A NoSessionError (or actually an error wrapping it) is returned whenever a call
+// (other than StartSession or EndSession)
+// is made on a sessionId that hasn't been started.
+var NoSessionError = errors.New("no such session")
+
+// A ClientStatus gives the state of a client in a session.
+type ClientStatus struct {
+	ClientId string
+	IsOnline bool
+}
+
+// A StatusReceiver is used by the pubsub manager to notify
+// the server of updates to client status in a session.
+type StatusReceiver chan ClientStatus

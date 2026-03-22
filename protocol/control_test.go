@@ -8,78 +8,95 @@ package protocol
 
 import "testing"
 
-func TestRequestsPendingPacket(t *testing.T) {
+func TestRequestsPendingChunk(t *testing.T) {
 	expected := "approve-requests|"
-	result := RequestsPendingPacket()
+	result := RequestsPendingChunk()
 
-	if result != expected {
-		t.Errorf("RequestsPendingPacket() failed, got %q, want %q", result, expected)
+	if result.String() != expected {
+		t.Errorf("RequestsPendingChunk() failed, got %q, want %q", result, expected)
 	}
 }
 
-func TestIsRequestsPendingPacket(t *testing.T) {
+func TestIsRequestsPendingChunk(t *testing.T) {
 	tests := []struct {
 		name     string
-		packet   string
+		data     string
 		expected bool
 	}{
 		{
-			name:     "Correct requests pending packet",
-			packet:   "approve-requests|",
+			name:     "Correct requests pending chunk",
+			data:     "approve-requests|",
 			expected: true,
 		},
 		{
-			name:     "Incorrect requests pending packet",
-			packet:   "wrong-packet|",
+			name:     "Incorrect requests pending chunk",
+			data:     "wrong-chunk|",
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := IsRequestsPendingPacket(tt.packet)
+			chunk := ParseControlChunk(tt.data)
+			result := IsRequestsPendingChunk(chunk)
 
 			if result != tt.expected {
-				t.Errorf("IsRequestsPendingPacket(%q) failed, got %v, want %v", tt.packet, result, tt.expected)
+				t.Errorf("IsRequestsPendingChunk(%q) failed, got %v, want %v", tt.data, result, tt.expected)
 			}
 		})
 	}
 }
 
-func TestParticipantsChangedPacket(t *testing.T) {
+func TestParticipantsChangedChunk(t *testing.T) {
 	expected := "participants-changed|"
-	result := ParticipantsChangedPacket()
+	result := ParticipantsChangedChunk()
 
-	if result != expected {
-		t.Errorf("ParticipantsChangedPacket() failed, got %q, want %q", result, expected)
+	if result.String() != expected {
+		t.Errorf("ParticipantsChangedChunk() failed, got %q, want %q", result, expected)
 	}
 }
 
-func TestIsParticipantsChangedPacket(t *testing.T) {
+func TestIsParticipantsChangedChunk(t *testing.T) {
 	tests := []struct {
 		name     string
-		packet   string
+		data     string
 		expected bool
 	}{
 		{
-			name:     "Correct participants changed packet",
-			packet:   "participants-changed|",
+			name:     "Correct participants changed chunk",
+			data:     "participants-changed|",
 			expected: true,
 		},
 		{
-			name:     "Incorrect participants changed packet",
-			packet:   "wrong-packet|",
+			name:     "Incorrect participants changed chunk",
+			data:     "wrong-chunk|",
 			expected: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := IsParticipantsChangedPacket(tt.packet)
+			chunk := ParseControlChunk(tt.data)
+			result := IsParticipantsChangedChunk(chunk)
 
 			if result != tt.expected {
-				t.Errorf("IsParticipantsChangedPacket(%q) failed, got %v, want %v", tt.packet, result, tt.expected)
+				t.Errorf("IsParticipantsChangedChunk(%q) failed, got %v, want %v", tt.data, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestEndChunk(t *testing.T) {
+	p1 := EndChunk()
+	e1 := "end|"
+	if p1.String() != e1 {
+		t.Errorf("EndChunk() failed, got %v, want %v", p1, e1)
+	}
+	if !IsEndChunk(p1) {
+		t.Errorf("IsEndChunk() didn't recognize chunk")
+	}
+	p2 := ParticipantsChangedChunk()
+	if IsEndChunk(p2) {
+		t.Errorf("IsEndChunk() recognized invalid chunk")
 	}
 }

@@ -16,12 +16,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/srv2/middleware"
-	"github.com/whisper-project/srv2/platform"
-	"github.com/whisper-project/srv2/storage"
+	"github.com/whisper-project/whisper.server2/middleware"
+	"github.com/whisper-project/whisper.server2/platform"
+	"github.com/whisper-project/whisper.server2/storage"
 )
 
-// Startup takes a configured router and runs a server instance with it as handler.
+// Startup takes a configured router and runs a server instance with that router.
 // The instance is configured so that it can be exited cleanly,
 // and it resumes any sessions left by the last instance.
 //
@@ -44,7 +44,7 @@ func Startup(router *gin.Engine, hostPort string) {
 		running = false
 	}()
 
-	// Listen for the interrupt signal, and restore default behavior
+	// Listen for the interrupt signal and restore default behavior
 	<-ctx.Done()
 	stop()
 	sLog().Info("interrupt received")
@@ -58,7 +58,7 @@ func Startup(router *gin.Engine, hostPort string) {
 	if running {
 		go func() {
 			if err := srv.Shutdown(ctx); err != nil {
-				sLog().Error("http server terminated with error", zap.Error(err))
+				sLog().Error("http server terminated with an error", zap.Error(err))
 			}
 			sLog().Info("http server gracefully stopped")
 		}()

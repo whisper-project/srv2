@@ -12,7 +12,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 )
 
 type Conversation struct {
@@ -115,6 +115,7 @@ func IsAllowedListener(conversationId, profileId string) (bool, error) {
 	if err != nil {
 		sLog().Error("storage failure (lookup) on AllowedListeners",
 			zap.String("conversationId", conversationId), zap.Error(err))
+		return false, err
 	}
 	return ok, err
 }

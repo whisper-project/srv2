@@ -21,19 +21,19 @@ import (
 )
 
 // S3GetEncryptedBlob retrieves and decrypts the blob to the given file.
-func S3GetEncryptedBlob(ctx context.Context, folderName, blobName string, outStream io.Writer) error {
+func S3GetEncryptedBlob(ctx context.Context, parentPath, blobName string, outStream io.Writer) error {
 	env := GetConfig()
 	myself, err := age.ParseX25519Identity(env.AgeSecretKey)
 	if err != nil {
 		return err
 	}
-	client, err := s3GetClient(&env)
+	client, err := s3GetClient(env)
 	if err != nil {
 		return err
 	}
-	path := blobName
-	if folderName != "" {
-		path = folderName + "/" + blobName
+	path := env.AwsRootPath + "/" + blobName
+	if parentPath != "" {
+		path = env.AwsRootPath + "/" + parentPath + "/" + blobName
 	}
 	resp, err := client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(env.AwsBucket),
@@ -52,13 +52,13 @@ func S3GetEncryptedBlob(ctx context.Context, folderName, blobName string, outStr
 }
 
 // S3PutEncryptedBlob puts the contents of the given file, encrypted, to the given blobName.
-func S3PutEncryptedBlob(ctx context.Context, folderName, blobName string, inStream io.Reader) error {
+func S3PutEncryptedBlob(ctx context.Context, parentPath, blobName string, inStream io.Reader) error {
 	env := GetConfig()
 	myself, err := age.ParseX25519Recipient(env.AgePublicKey)
 	if err != nil {
 		return err
 	}
-	client, err := s3GetClient(&env)
+	client, err := s3GetClient(env)
 	if err != nil {
 		return err
 	}
@@ -86,9 +86,9 @@ func S3PutEncryptedBlob(ctx context.Context, folderName, blobName string, inStre
 		return err
 	}
 	blobLen := stat.Size()
-	path := blobName
-	if folderName != "" {
-		path = folderName + "/" + blobName
+	path := env.AwsRootPath + "/" + blobName
+	if parentPath != "" {
+		path = env.AwsRootPath + "/" + parentPath + "/" + blobName
 	}
 	_, err = client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket:        aws.String(env.AwsBucket),
@@ -100,15 +100,15 @@ func S3PutEncryptedBlob(ctx context.Context, folderName, blobName string, inStre
 	return err
 }
 
-func S3DeleteBlob(ctx context.Context, folderName, blobName string) error {
+func S3DeleteBlob(ctx context.Context, parentPath, blobName string) error {
 	env := GetConfig()
-	client, err := s3GetClient(&env)
+	client, err := s3GetClient(env)
 	if err != nil {
 		return err
 	}
-	path := blobName
-	if folderName != "" {
-		path = folderName + "/" + blobName
+	path := env.AwsRootPath + "/" + blobName
+	if parentPath != "" {
+		path = env.AwsRootPath + "/" + parentPath + "/" + blobName
 	}
 	_, err = client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(env.AwsBucket),
@@ -117,16 +117,16 @@ func S3DeleteBlob(ctx context.Context, folderName, blobName string) error {
 	return err
 }
 
-func S3ListBlobs(ctx context.Context, folderName string) ([]string, error) {
+func S3ListBlobs(ctx context.Context, parentPath string) ([]string, error) {
 	env := GetConfig()
-	client, err := s3GetClient(&env)
+	client, err := s3GetClient(env)
 	if err != nil {
 		return nil, err
 	}
-	var prefix string
 	spec := &s3.ListObjectsV2Input{Bucket: aws.String(env.AwsBucket)}
-	if folderName != "" {
-		prefix = folderName + "/"
+	prefix := env.AwsRootPath + "/"
+	if parentPath != "" {
+		prefix += parentPath + "/"
 		spec = &s3.ListObjectsV2Input{
 			Bucket: aws.String(env.AwsBucket),
 			Prefix: aws.String(prefix),
@@ -151,7 +151,7 @@ func s3GetClient(env *Environment) (*s3.Client, error) {
 		config.WithCredentialsProvider(credentials.StaticCredentialsProvider{
 			Value: aws.Credentials{AccessKeyID: env.AwsAccessKey, SecretAccessKey: env.AwsSecretKey},
 		}),
-		config.WithRegion(GetConfig().AwsRegion))
+		config.WithRegion(env.AwsRegion))
 	if err != nil {
 		return nil, err
 	}

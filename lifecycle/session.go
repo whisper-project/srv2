@@ -11,32 +11,36 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"github.com/google/uuid"
 
-	"github.com/whisper-project/srv2/speech"
+	"github.com/whisper-project/whisper.server2/speech"
 
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/srv2/protocol"
-	"github.com/whisper-project/srv2/pubsub"
-	"github.com/whisper-project/srv2/storage"
+	"github.com/whisper-project/whisper.server2/protocol"
+	"github.com/whisper-project/whisper.server2/pubsub"
+	"github.com/whisper-project/whisper.server2/storage"
 )
 
 var (
-	ably                = pubsub.NewAblyManager()
-	mock                = speech.NewMockManager()
+	ably                = pubsub.GetAblyManager()
+	resemble            = speech.GetResembleManager()
 	sessions            = make(map[string]*Session)
 	AlreadyPresentError = fmt.Errorf("already present")
 	NotPresentError     = fmt.Errorf("not present")
 )
 
 // A Session is one continuous instance of a conversation with a single
-// Whisperer and multiple Listeners.
+// Whisperer (possibly on multiple client devices) and multiple Listeners.
+//
+// Sessions are kept in memory on one server instance. If that server
+// shuts down while the session is in progress, it saves the session's
+// state so that it can be reloaded and resumed on a different server.
 type Session struct {
 	Id           string // the conversation ID this is a session for
+	Owner        string // the ID of the Whisperer that owns the conversation
 	Pubsub       pubsub.Manager
 	speech       speech.Manager
 	state        *storage.SessionState
@@ -51,7 +55,7 @@ type Session struct {
 }
 
 // AuthenticateParticipant gets an appropriate pubsub token for a client.
-// If it returns a nil token then the client cannot authenticate against the session.
+// If it returns a nil token, then the client cannot authenticate against the session.
 func AuthenticateParticipant(conversationId, clientId string) (json.RawMessage, error) {
 	s, ok := sessions[conversationId]
 	if !ok {
@@ -74,17 +78,20 @@ func GetSession(conversationId string) (*Session, error) {
 	}
 	state, err := storage.LoadSessionState(conversationId)
 	if err != nil {
-		sLog().Error("session get suspended state failure",
-			zap.String("sessionId", conversationId), zap.Error(err))
 		return nil, err
 	}
 	if state == nil {
 		state = storage.NewSessionState(conversationId)
 	}
+	c, err := storage.GetConversation(conversationId)
+	if err != nil {
+		return nil, err
+	}
 	s := &Session{
 		Id:     conversationId,
+		Owner:  c.Owner,
 		Pubsub: ably,
-		speech: mock,
+		speech: resemble,
 		state:  state,
 		cr:     make(protocol.ContentReceiver, 1024), // never stall
 		sr:     make(pubsub.StatusReceiver, 1024),    // never stall
@@ -109,7 +116,7 @@ func EndAllSessions() int {
 
 // ShutdownAllSessions gets all running sessions ready for handoff to a new server instance.
 // It's meant to be invoked as a goroutine.
-// When it's finished it notifies with the number of sessions that were shut down.
+// When it's finished, it notifies with the number of sessions that were shut down.
 func ShutdownAllSessions(notify chan int) {
 	count := len(sessions)
 	if count == 0 {
@@ -130,11 +137,10 @@ func ShutdownAllSessions(notify chan int) {
 }
 
 // StartAllSuspendedSessions gets all suspended sessions running in this server instance.
-// It's meant to be invoked as a goroutine, and stops when there are no more suspended sessions.
+// It's meant to be invoked as a goroutine and stops when there are no more suspended sessions.
 func StartAllSuspendedSessions() {
-	timeout := 30 * time.Second
 	for {
-		id, err := storage.WaitForSuspendedSession(timeout)
+		id, err := storage.WaitForSuspendedSession(30)
 		if err != nil {
 			sLog().Error("retrieve suspended session failure", zap.Error(err))
 			return
@@ -160,7 +166,7 @@ func StartAllSuspendedSessions() {
 
 // Shutdown gets a session ready for handoff to a new server instance
 // (presumably because this one is terminating). It saves the state of
-// the session, and saves all the packets in the current live text of
+// the session and saves all the packets in the current live text of
 // the session so they can be processed by the next server. It also keeps
 // listening and saving content packets for 10 seconds to give the next
 // server time to start up and resume the session. It notifies the session ID
@@ -172,9 +178,7 @@ func (s *Session) Shutdown(notify chan string) {
 	go func() {
 		time.Sleep(10 * time.Second)
 		s.cancel()
-		if err := s.Pubsub.EndSession(s.Id); err != nil {
-			sLog().Error("ably session end failure", zap.String("sessionId", s.Id), zap.Error(err))
-		}
+		s.Pubsub.EndSession(s.Id)
 		if err := storage.SaveSessionState(s.state); err != nil {
 			sLog().Error("session suspend failure", zap.String("sessionId", s.Id), zap.Error(err))
 		}
@@ -185,19 +189,16 @@ func (s *Session) Shutdown(notify chan string) {
 // End terminates a session at the request of the Whisperer. All
 // participants are notified that the session is ending, and then the
 // session is destroyed. If the session is being transcribed, then
-// the transcript is finalized and saved and its ID is returned.
+// the transcript is finalized and saved, and its ID is returned.
 func (s *Session) End() string {
 	delete(sessions, s.Id)
 	s.state.EndedAt = time.Now().UnixMilli()
-	if err := s.Pubsub.Broadcast(s.Id, protocol.EndPacket()); err != nil {
-		sLog().Error("ably broadcast failure on end of session",
+	if err := s.Pubsub.BroadcastControl(s.Id, protocol.EndChunk()); err != nil {
+		sLog().Error("ably broadcast failure when ending the session",
 			zap.String("sessionId", s.Id), zap.Error(err))
 	}
 	s.cancel()
-	if err := s.Pubsub.EndSession(s.Id); err != nil {
-		sLog().Error("ably session end failure",
-			zap.String("sessionId", s.Id), zap.Error(err))
-	}
+	s.Pubsub.EndSession(s.Id)
 	if err := s.saveTranscript(); err != nil {
 		sLog().Error("session save transcript failure",
 			zap.String("sessionId", s.Id), zap.Error(err))
@@ -274,7 +275,7 @@ func (s *Session) RemoveClient(clientId string) error {
 	return nil
 }
 
-// Transcribe marks a session for transcription, and returns the ID
+// Transcribe marks a session for transcription and returns the ID
 // of the transcription.
 func (s *Session) Transcribe() string {
 	s.transcriptId = uuid.NewString()
@@ -345,11 +346,11 @@ func (s *Session) notifyNeedsAuth() {
 	if len(s.state.Waitlist) > 0 {
 		for _, p := range s.state.Participants {
 			if p.IsWhisperer && p.IsOnline {
-				packet := protocol.RequestsPendingPacket()
-				if err := s.Pubsub.Send(s.Id, "whisperer", packet); err != nil {
+				chunk := protocol.RequestsPendingChunk()
+				if err := s.Pubsub.SendControl(s.Id, "whisperer", chunk); err != nil {
 					sLog().Error("ably send failure to Whisperer",
 						zap.String("sessionId", s.Id), zap.String("clientId", "whisperer"),
-						zap.String("packet", packet), zap.Error(err))
+						zap.String("chunk", chunk.String()), zap.Error(err))
 				}
 				break
 			}
@@ -373,11 +374,11 @@ func (s *Session) monitorParticipants(ctx context.Context) {
 			if p.IsWhisperer && status.IsOnline {
 				s.notifyNeedsAuth()
 			}
-			packet := protocol.ParticipantsChangedPacket()
-			if err := s.Pubsub.Broadcast(s.Id, packet); err != nil {
+			chunk := protocol.ParticipantsChangedChunk()
+			if err := s.Pubsub.BroadcastControl(s.Id, chunk); err != nil {
 				sLog().Error("ably broadcast failure",
 					zap.String("sessionId", s.Id),
-					zap.String("packet", packet), zap.Error(err))
+					zap.String("packet", chunk.String()), zap.Error(err))
 			}
 		}
 	}
@@ -387,7 +388,8 @@ func (s *Session) transcribeContent(ctx context.Context) {
 	slog.Info("transcribing content started", zap.String("sessionId", s.Id))
 	// wait for the first packet, which always comes as soon as pubsub is online
 	<-s.cr
-	// process the packets received by the prior server before our time of attach
+	// process the packets received but not processed by the prior server
+	// while we were starting up
 	processedIds := s.processSuspendedPackets()
 	packetsToCheck := len(processedIds)
 	for {
@@ -432,7 +434,7 @@ func (s *Session) transcribeContent(ctx context.Context) {
 func (s *Session) processSuspendedPackets() (packetIds map[string]bool) {
 	packets, err := storage.LoadSuspendedSessionPackets(s.Id)
 	if err != nil {
-		sLog().Error("session get suspended packets failure",
+		sLog().Error("failure loading suspended packets at session startup",
 			zap.String("sessionId", s.Id), zap.Error(err))
 		return
 	}
@@ -444,32 +446,11 @@ func (s *Session) processSuspendedPackets() (packetIds map[string]bool) {
 }
 
 func (s *Session) transcribeOnePacket(packet protocol.ContentPacket) {
-	live, past := protocol.ProcessLiveChunk(s.liveText, protocol.ParseContentChunk(packet.Data))
-	if len(past) > 0 {
-		now := time.Now().UnixMilli()
-		for i, p := range past {
-			s.state.PastText = append(s.state.PastText, storage.PastTextLine{now, p})
-			if id, err := s.speech.GenerateSpeech(p); err != nil {
-				sLog().Error("speech generation failure on past text line",
-					zap.String("sessionId", s.Id), zap.String("packetId", packet.PacketId),
-					zap.String("clientId", packet.ClientId), zap.String("text", p), zap.Error(err))
-			} else {
-				packet := protocol.PastTextSpeechIdPacket(packet.PacketId, strconv.Itoa(i), id)
-				if err := s.Pubsub.Broadcast(s.Id, packet); err != nil {
-					sLog().Error("ably broadcast failure or past text speech id",
-						zap.String("sessionId", s.Id),
-						zap.String("packet", packet), zap.Error(err))
-				}
-			}
-		}
-		if live == "" {
-			s.livePackets = nil
-		} else {
-			chunk := protocol.ContentChunk{Offset: 0, Text: live}
-			s.livePackets = []protocol.ContentPacket{
-				{uuid.NewString(), packet.ClientId, chunk.String()},
-			}
-		}
+	live, past, pastId := protocol.ProcessLiveChunk(s.liveText, protocol.ParseContentChunk(packet.Data))
+	if past != nil {
+		s.state.PastText = append(s.state.PastText, storage.PastTextLine{time.Now().UnixMilli(), *past})
+		s.speech.GenerateSpeech(storage.ServerContext, s.Owner, *pastId, *past)
+		s.livePackets = nil
 	} else {
 		s.livePackets = append(s.livePackets, packet)
 	}

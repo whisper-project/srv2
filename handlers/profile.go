@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/whisper-project/srv2/middleware"
-	"github.com/whisper-project/srv2/storage"
+	"github.com/whisper-project/whisper.server2/middleware"
+	"github.com/whisper-project/whisper.server2/storage"
 
 	"go.uber.org/zap"
 

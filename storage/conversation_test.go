@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/go-test/deep"
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 
 	"github.com/google/uuid"
 )
@@ -19,15 +19,27 @@ import (
 func TestConversationInterface(t *testing.T) {
 	id := uuid.NewString()
 	c := &Conversation{Id: id}
-	var n *Conversation
-	platform.RedisKeyTester(t, c, "conversation:", id)
-	platform.RedisValueTester(t, c, n, func(l, r *Conversation) bool { return l == r })
+	var n Conversation
+	if errs := platform.RedisKeyTester(c, "conversation:", id); len(errs) > 0 {
+		for _, err := range errs {
+			t.Error(err)
+		}
+	}
+	if errs := platform.RedisValueTester(c, &n, func(l, r *Conversation) bool { return *l == *r }); len(errs) > 0 {
+		for _, err := range errs {
+			t.Error(err)
+		}
+	}
 }
 
 func TestAllowedListenersInterface(t *testing.T) {
 	id := uuid.NewString()
 	a := AllowedListeners(id)
-	platform.RedisKeyTester(t, a, "allowed-listeners:", id)
+	if errs := platform.RedisKeyTester(a, "allowed-listeners:", id); len(errs) > 0 {
+		for _, err := range errs {
+			t.Error(err)
+		}
+	}
 }
 
 func TestConversationMethods(t *testing.T) {

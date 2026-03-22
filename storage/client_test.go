@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 )
 
 func TestActivityDataInterface(t *testing.T) {
@@ -25,8 +25,16 @@ func TestActivityDataInterface(t *testing.T) {
 		LastTime:     4,
 	}
 	var o ActivityData
-	platform.RedisKeyTester(t, i, "activity-data:", clientId)
-	platform.RedisValueTester(t, i, &o, func(l, r *ActivityData) bool { return l == r })
+	if errs := platform.RedisKeyTester(i, "activity-data:", clientId); len(errs) > 0 {
+		for _, err := range errs {
+			t.Error(err)
+		}
+	}
+	if errs := platform.RedisValueTester(i, &o, func(l, r *ActivityData) bool { return *l == *r }); len(errs) > 0 {
+		for _, err := range errs {
+			t.Error(err)
+		}
+	}
 }
 
 func TestClientActivityMethods(t *testing.T) {
@@ -44,7 +52,7 @@ func TestClientActivityMethods(t *testing.T) {
 	if a1.ProfileId != profileId {
 		t.Errorf("Got the wrong profile id. Got %s, Want %s", a1.ProfileId, profileId)
 	}
-	if a1.LaunchTime <= now {
+	if a1.LaunchTime < now {
 		t.Errorf("Got an early start. Got %v, Want no earlier than %v", a1.LaunchTime, now)
 	}
 	if a1.LastActivity != "launch" {

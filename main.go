@@ -5,7 +5,7 @@
  */
 package main
 
-import "github.com/whisper-project/srv2/cmd"
+import "github.com/whisper-project/whisper.server2/cmd"
 
 func main() {
 	cmd.Execute()

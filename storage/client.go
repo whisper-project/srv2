@@ -13,7 +13,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 )
 
 // ActivityData tracks the attributes of a client
@@ -109,6 +109,7 @@ func ObserveClientActivity(clientId string, activity string) {
 	now := time.Now().UnixMilli()
 	a, err := GetClientActivity(clientId)
 	if err != nil {
+		// notest
 		return
 	}
 	a.LastActivity = activity

@@ -7,23 +7,56 @@
 package storage
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/whisper-project/srv2/protocol"
+	"github.com/whisper-project/whisper.server2/protocol"
 
 	"github.com/go-test/deep"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 )
+
+func TestSuspendedSessionIdAddWaitRemoveWait(t *testing.T) {
+	id1 := platform.NewId("test-session-state-")
+	if err := AddSuspendedSession(id1); err != nil {
+		t.Fatalf("failed to add suspended session id %v: %s", id1, err)
+	}
+	id2, err := WaitForSuspendedSession(1)
+	if err != nil {
+		t.Fatalf("failed to wait for suspended session id: %s", err)
+	}
+	if id2 != id1 {
+		t.Errorf("retrieved session id %v does not match added session id %v", id2, id1)
+	}
+	if err := RemoveSuspendedSession(id2); err != nil {
+		t.Fatalf("failed to remove retrieved session id %v: %s", id2, err)
+	}
+	id3, err := WaitForSuspendedSession(1)
+	if err != nil {
+		t.Fatalf("failed to wait for suspended session id: %s", err)
+	}
+	if id3 != "" {
+		t.Errorf("expected empty session id but got %v", id3)
+	}
+}
 
 func TestSessionStateInterface(t *testing.T) {
 	id := platform.NewId("test-session-state-")
 	s := newSampleSessionState(id)
 	var n SessionState
-	platform.RedisKeyTester(t, s, "session-state:", id)
-	platform.RedisValueTester(t, s, &n, func(l, r *SessionState) bool { return deep.Equal(l, r) == nil })
+	if errs := platform.RedisKeyTester(s, "session-state:", id); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
+	if errs := platform.RedisValueTester(s, &n, func(l, r *SessionState) bool { return deep.Equal(l, r) == nil }); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func newSampleSessionState(id string) *SessionState {
@@ -50,7 +83,7 @@ func newSampleSessionState(id string) *SessionState {
 func TestSessionStateResumeSuspendResumeResume(t *testing.T) {
 	id := platform.NewId("test-session-state-")
 	s0, err := LoadSessionState(id)
-	if s0 != nil || err != nil {
+	if s0 != nil || !errors.Is(err, platform.NotFoundError) {
 		t.Fatalf("expected nil state, got %v, err %v", s0, err)
 	}
 	s1 := newSampleSessionState(id)
@@ -64,19 +97,24 @@ func TestSessionStateResumeSuspendResumeResume(t *testing.T) {
 	if diff := deep.Equal(s1, s0); diff != nil {
 		t.Errorf("suspended state mismatch: %v", diff)
 	}
-	if s1, err = LoadSessionState(id); err != nil || s1 != nil {
-		t.Fatalf("repeated fetch of suspended state succeeded")
+	s3, err := LoadSessionState(id)
+	if s3 != nil || !errors.Is(err, platform.NotFoundError) {
+		t.Fatalf("expected nil state, got %v, err %v", s3, err)
 	}
 }
 
 func TestSuspendedSessionPacketsInterface(t *testing.T) {
-	platform.RedisKeyTester(t, SuspendedSessionPackets("test"), "suspended-packets:", "test")
+	if errs := platform.RedisKeyTester(SuspendedSessionPackets("test"), "suspended-packets:", "test"); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
 func TestSessionPacketsResumeSuspendResume(t *testing.T) {
 	id := platform.NewId("test-session-packets-")
-	if p0, err := LoadSuspendedSessionPackets(id); p0 != nil || err != nil {
-		t.Errorf("expected nil packets, got packets %v, err %v", p0, err)
+	if p0, err := LoadSuspendedSessionPackets(id); len(p0) != 0 || err != nil {
+		t.Errorf("expected no packets, got packets %v, err %v", p0, err)
 	}
 	packets := []protocol.ContentPacket{
 		{"a", "a", "a"},
@@ -111,14 +149,22 @@ func TestTranscriptInterface(t *testing.T) {
 		},
 	}
 	var t2 Transcript
-	platform.RedisKeyTester(t, t1, "transcript:", id)
-	platform.RedisValueTester(t, t1, &t2, func(l, r *Transcript) bool { return deep.Equal(l, r) == nil })
+	if errs := platform.RedisKeyTester(t1, "transcript:", id); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
+	if errs := platform.RedisValueTester(t1, &t2, func(l, r *Transcript) bool { return deep.Equal(l, r) == nil }); len(errs) > 0 {
+		for _, e := range errs {
+			t.Error(e)
+		}
+	}
 }
 
-func TestNewTranscriptFetchStoreFetch(t *testing.T) {
+func TestNewTranscriptFetchStoreFetchDeleteFetch(t *testing.T) {
 	cId := platform.NewId("test-convo-")
 	tId := platform.NewId("test-transcript-")
-	if transcript, err := LoadTranscript(tId); err != nil || transcript != nil {
+	if transcript, err := LoadTranscript(tId); !errors.Is(err, platform.NotFoundError) || transcript != nil {
 		t.Errorf("expected nil transcript, got %v, err %v", transcript, err)
 	}
 	state := newSampleSessionState(cId)
@@ -138,5 +184,11 @@ func TestNewTranscriptFetchStoreFetch(t *testing.T) {
 	}
 	if diff := deep.Equal(transcript, retrieved); diff != nil {
 		t.Errorf("retrieved transcript mismatch: %v", diff)
+	}
+	if err := DeleteTranscript(tId); err != nil {
+		t.Errorf("delete of deleted transcript failed: %v", err)
+	}
+	if transcript, err := LoadTranscript(tId); !errors.Is(err, platform.NotFoundError) || transcript != nil {
+		t.Errorf("expected nil transcript, got %v, err %v", transcript, err)
 	}
 }

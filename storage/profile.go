@@ -13,7 +13,7 @@ import (
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 
-	"github.com/whisper-project/srv2/platform"
+	"github.com/whisper-project/whisper.server2/platform"
 )
 
 // A Profile represents a user.
@@ -139,7 +139,7 @@ func AddOwnedConversation(c *Conversation) error {
 	return nil
 }
 
-// RemoveOwnedConversation removes the given conversation from its owner's name->id map.
+// RemoveOwnedConversation removes the given conversation from its owner's name->id map
 func RemoveOwnedConversation(c *Conversation) error {
 	key := OwnedConversationMap(c.Owner)
 	if err := platform.MapRemoveKey(sCtx(), key, c.Name); err != nil {
@@ -182,10 +182,9 @@ func GetOwnedConversationsNameToIdMap(profileId string) (map[string]string, erro
 // Everything is saved to storage.
 //
 // It's an error to call this if there is already a profile for the given hashedEmail.
-func CreateNewUser(clientId, clientType, name, hashedEmail string) (*Profile, error) {
-	id := platform.NewId("profile-")
+func CreateNewUser(profileId, clientId, clientType, name, hashedEmail string) (*Profile, error) {
 	p := &Profile{
-		Id:        id,
+		Id:        profileId,
 		Name:      name,
 		EmailHash: hashedEmail,
 		Secret:    uuid.NewString(),
@@ -198,14 +197,15 @@ func CreateNewUser(clientId, clientType, name, hashedEmail string) (*Profile, er
 		if !cleanup {
 			return
 		}
+		// notest
 		_ = RemoveEmailProfile(hashedEmail)
-		_ = DeleteProfile(id)
+		_ = DeleteProfile(profileId)
 	}()
-	if err := SetEmailProfile(hashedEmail, id); err != nil {
+	if err := SetEmailProfile(hashedEmail, profileId); err != nil {
 		cleanup = true
 		return nil, err
 	}
-	if _, err := CreateNewOwnedConversation(id, "Conversation 1"); err != nil {
+	if _, err := CreateNewOwnedConversation(profileId, "Conversation 1"); err != nil {
 		cleanup = true
 		return nil, err
 	}
@@ -226,29 +226,36 @@ func DeleteExistingUser(profileId string) (errs []error) {
 	p, _ := GetProfile(profileId)
 	if p == nil {
 		// there's nothing to delete
+		// notest
 		return
 	}
 	if err := RemoveEmailProfile(p.EmailHash); err != nil {
+		// notest
 		errs = append(errs, err)
 	}
 	cIds, err := GetOwnedConversationsNameToIdMap(profileId)
 	if err != nil {
+		// notest
 		errs = append(errs, err)
 	}
 	for _, cId := range cIds {
 		c, err := GetConversation(cId)
 		if err != nil {
+			// notest
 			errs = append(errs, err)
 			continue
 		}
 		if err := RemoveOwnedConversation(c); err != nil {
+			// notest
 			errs = append(errs, err)
 		}
 		if err := DeleteConversation(cId); err != nil {
+			// notest
 			errs = append(errs, err)
 		}
 	}
 	if err := DeleteProfile(profileId); err != nil {
+		// notest
 		errs = append(errs, err)
 	}
 	return
@@ -270,6 +277,7 @@ func CreateNewOwnedConversation(profileId string, name string) (*Conversation, e
 		if !cleanup {
 			return
 		}
+		// notest
 		_ = DeleteConversation(conversation.Id)
 	}()
 	if err := AddOwnedConversation(conversation); err != nil {
@@ -289,6 +297,7 @@ func DeleteOwnedConversation(profileId string, name string) error {
 		return err
 	}
 	if convoId == "" {
+		// notest
 		return nil
 	}
 	c, err := GetConversation(convoId)
@@ -300,6 +309,7 @@ func DeleteOwnedConversation(profileId string, name string) error {
 	}
 	if c.Owner != profileId {
 		// shouldn't happen, but if it does, we relink the conversation to the correct owner
+		// notest
 		sLog().Error("attempted to delete conversation linked to a different profile",
 			zap.String("profileId", profileId), zap.Any("conversation", c))
 		if err := AddOwnedConversation(c); err != nil {

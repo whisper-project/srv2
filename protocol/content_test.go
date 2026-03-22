@@ -6,28 +6,34 @@
 
 package protocol
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestProcessLiveChunk(t *testing.T) {
 	tests := []struct {
-		name         string
-		oldLive      string
-		chunk        ContentChunk
-		expectedLive string
-		expectedPast []string
+		name            string
+		oldLive         string
+		chunk           ContentChunk
+		expectedLive    string
+		expectedPast    []string
+		expectedPastIds []string
 	}{
 		{
 			"coNewline offset",
 			"hello",
-			ContentChunk{Offset: CoNewline, Text: ""},
+			ContentChunk{Offset: CoNewline, Text: "frotz"},
 			"",
 			[]string{"hello"},
+			[]string{"frotz"},
 		},
 		{
 			"Offset within oldLive",
 			"hello",
 			ContentChunk{Offset: 3, Text: "p"},
 			"help",
+			nil,
 			nil,
 		},
 		{
@@ -36,12 +42,14 @@ func TestProcessLiveChunk(t *testing.T) {
 			ContentChunk{Offset: 4, Text: "z"},
 			"hi??z",
 			nil,
+			nil,
 		},
 		{
 			"Empty oldLive",
 			"",
 			ContentChunk{Offset: 0, Text: "new"},
 			"new",
+			nil,
 			nil,
 		},
 		{
@@ -50,21 +58,41 @@ func TestProcessLiveChunk(t *testing.T) {
 			ContentChunk{Offset: 5, Text: "!"},
 			"world!",
 			nil,
+			nil,
+		},
+		{
+			"Chunk doesn't affect live",
+			"hello!",
+			ContentChunk{Offset: CoPlaySound, Text: "sound-name"},
+			"hello!",
+			nil,
+			nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualLive, actualPast := ProcessLiveChunk(tt.oldLive, tt.chunk)
+			actualLive, actualPast, actualPastId := ProcessLiveChunk(tt.oldLive, tt.chunk)
 			if actualLive != tt.expectedLive {
 				t.Errorf("Expected live: %q, got: %q", tt.expectedLive, actualLive)
 			}
-			if len(actualPast) != len(tt.expectedPast) {
-				t.Fatalf("Expected past length: %d, got: %d", len(tt.expectedPast), len(actualPast))
-			}
-			for i, expectedPast := range tt.expectedPast {
-				if actualPast[i] != expectedPast {
-					t.Errorf("Past[%d] - Expected: %q, got: %q", i, expectedPast, actualPast[i])
+			if actualPast == nil {
+				if tt.expectedPast != nil {
+					t.Errorf("Expected past: %v, got: nil", tt.expectedPast[0])
+				}
+				if tt.expectedPastIds != nil {
+					t.Errorf("Expected pastId: %v, got: nil", tt.expectedPastIds[0])
+				}
+			} else {
+				if tt.expectedPast == nil {
+					t.Errorf("Expected past: %v, got: %v", tt.expectedPast, *actualPast)
+				} else if tt.expectedPast[0] != *actualPast {
+					t.Errorf("Expected past: %v, got: %v", tt.expectedPast[0], *actualPast)
+				}
+				if tt.expectedPastIds == nil {
+					t.Errorf("Expected pastId: %v, got: %v", tt.expectedPastIds, *actualPastId)
+				} else if tt.expectedPastIds[0] != *actualPastId {
+					t.Errorf("Expected pastId: %v, got: %v", tt.expectedPastIds[0], *actualPastId)
 				}
 			}
 		})
@@ -78,6 +106,12 @@ func TestDiffLines(t *testing.T) {
 		new      string
 		expected []ContentChunk
 	}{
+		{
+			"Base case - lines differ",
+			"here is some live text",
+			"here is some new live text",
+			[]ContentChunk{{Offset: len("here is some "), Text: "new live text"}},
+		},
 		{
 			"Identical strings",
 			"test",
@@ -97,7 +131,7 @@ func TestDiffLines(t *testing.T) {
 			[]ContentChunk{{Offset: 4, Text: ""}},
 		},
 		{
-			"Suffix with newline",
+			"Suffix with a newline",
 			"hello",
 			"hello\nworld",
 			[]ContentChunk{
@@ -116,7 +150,13 @@ func TestDiffLines(t *testing.T) {
 			}
 			for i, expectedChunk := range tt.expected {
 				if actual[i] != expectedChunk {
-					t.Errorf("Chunk[%d] - Expected: %+v, got: %+v", i, expectedChunk, actual[i])
+					if actual[i].Offset != CoNewline {
+						t.Errorf("Chunk[%d] - Expected: %+v, got: %+v", i, expectedChunk, actual[i])
+					} else {
+						if expectedChunk.Offset != CoNewline || !strings.HasPrefix(actual[i].Text, "line-") {
+							t.Errorf("Chunk[%d] - Expected: %+v, got: %+v", i, expectedChunk, actual[i])
+						}
+					}
 				}
 			}
 		})
@@ -137,7 +177,7 @@ func TestSuffixToChunks(t *testing.T) {
 			nil,
 		},
 		{
-			"Single line addition",
+			"Single-line addition",
 			"hello\nworld",
 			5,
 			[]ContentChunk{
@@ -168,7 +208,13 @@ func TestSuffixToChunks(t *testing.T) {
 			}
 			for i, expectedChunk := range tt.expected {
 				if actual[i] != expectedChunk {
-					t.Errorf("Chunk[%d] - Expected: %+v, got: %+v", i, expectedChunk, actual[i])
+					if actual[i].Offset != CoNewline {
+						t.Errorf("Chunk[%d] - Expected: %+v, got: %+v", i, expectedChunk, actual[i])
+					} else {
+						if expectedChunk.Offset != CoNewline || !strings.HasPrefix(actual[i].Text, "line-") {
+							t.Errorf("Chunk[%d] - Expected: %+v, got: %+v", i, expectedChunk, actual[i])
+						}
+					}
 				}
 			}
 		})

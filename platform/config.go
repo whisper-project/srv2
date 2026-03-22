@@ -16,21 +16,22 @@ import (
 )
 
 type Environment struct {
+	AblyPublishKey   string
+	AblySubscribeKey string
 	AgePublicKey     string
 	AgeSecretKey     string
 	AwsAccessKey     string
 	AwsBucket        string
-	AblyPublishKey   string
-	AwsReportFolder  string
 	AwsRegion        string
+	AwsRootPath      string
 	AwsSecretKey     string
-	AblySubscribeKey string
 	DbKeyPrefix      string
 	DbUrl            string
 	HttpHost         string
 	HttpPort         int
 	HttpScheme       string
 	Name             string
+	ResembleToken    string
 	SmtpCredId       string
 	SmtpCredSecret   string
 	SmtpHost         string
@@ -39,113 +40,91 @@ type Environment struct {
 
 //goland:noinspection SpellCheckingInspection
 var (
-	ciConfig = Environment{
-		Name:             "CI",
-		AgePublicKey:     "age1kq7jnct8jv0d2hr7u3vpf6804emfqwptz6svy9mc9nv7pnkzqc5qsm4wrz",
-		AgeSecretKey:     "AGE-SECRET-KEY-1H30T40KMX70VYEHM2ATF9N02U6KRL46660EFPU8GT76DAJNZN6EQRU7CGA",
-		AblyPublishKey:   "xVLyHw.DGYdkQ:FtPUNIourpYSoZAIbeon0p_rJGtb5vO1j2OIzP3GMX8",
-		HttpScheme:       "http",
-		HttpHost:         "localhost",
-		SmtpHost:         "localhost",
-		HttpPort:         8080,
-		SmtpPort:         2500,
-		SmtpCredSecret:   "",
-		AblySubscribeKey: "xVLyHw.DGYdkQ:FtPUNIourpYSoZAIbeon0p_rJGtb5vO1j2OIzP3GMX8",
-		SmtpCredId:       "",
-		DbUrl:            "redis://",
+	loadedConfig = Environment{
+		AblyPublishKey:   "",
+		AblySubscribeKey: "",
+		AgePublicKey:     "",
+		AgeSecretKey:     "",
 		DbKeyPrefix:      "c:",
+		DbUrl:            "redis://",
+		HttpHost:         "localhost",
+		HttpPort:         8080,
+		HttpScheme:       "http",
+		Name:             "CI",
+		ResembleToken:    "",
+		SmtpCredId:       "",
+		SmtpCredSecret:   "",
+		SmtpHost:         "",
+		SmtpPort:         2500,
 	}
-	loadedConfig        = ciConfig
-	configStack         []Environment
-	configChangeActions = make(map[string]func())
 )
 
-func RegisterForConfigChange(name string, action func()) {
-	if _, ok := configChangeActions[name]; ok {
-		panic(`Duplicate action registration for "` + name + `"`)
-	}
-	configChangeActions[name] = action
+func init() {
+	_ = SetConfig("d")
 }
 
-func UnregisterForConfigChange(name string) {
-	delete(configChangeActions, name)
+// GetConfig returns a pointer to the current Environment.
+//
+// The use of a pointer allows the Environment to be altered.
+// This is typically done for testing purposes. Any alterations
+// will be overwritten at the next SetConfig call.
+//
+// There is always a current environment. When this module is first loaded,
+// it attempts to load a development environment via `SetConfig("d")`.
+// If that fails, it falls back to a `CI` environment that has no
+// secret values in it.
+func GetConfig() *Environment {
+	return &loadedConfig
 }
 
-func runConfigChangeActions() {
-	for _, action := range configChangeActions {
-		action()
-	}
-}
-
-func GetConfig() Environment {
-	return loadedConfig
-}
-
-func PushConfig(name string) error {
+// SetConfig sets the environment based on the dotenv file of the specified name.
+//
+// If you don't specify any name, you get the environment from the current directory's
+// `.env.vault` file selected by the `DOTENV_KEY` environment variable. Only the
+// current directory is searched for the `.env.vault` file (or fallback `.env` file).
+//
+// If you do specify a name, you are specifying that you want to the environment
+// loaded from a `.env*` file. Only the first character of the name matters,
+// and it must be one of 'd' (for `.env`), 's' for `.env.staging`,
+// 'p' for `.env.production`, or 't' for `.env.testing`. And the file is looked
+// for not only in the current directory but also four levels of parent.
+func SetConfig(name string) error {
+	// notest
 	if name == "" {
-		return pushEnvConfig("")
-	}
-	if strings.HasPrefix(name, "c") {
-		return pushCiConfig()
+		return setEnvConfig("")
 	}
 	if strings.HasPrefix(name, "d") {
-		return pushEnvConfig(".env")
+		return setEnvConfig(".env")
 	}
 	if strings.HasPrefix(name, "s") {
-		return pushEnvConfig(".env.staging")
+		return setEnvConfig(".env.staging")
 	}
 	if strings.HasPrefix(name, "p") {
-		return pushEnvConfig(".env.production")
+		return setEnvConfig(".env.production")
 	}
 	if strings.HasPrefix(name, "t") {
-		return pushEnvConfig(".env.testing")
+		return setEnvConfig(".env.testing")
 	}
 	return fmt.Errorf("unknown environment: %s", name)
 }
 
-func PushAlteredConfig(env Environment) {
-	configStack = append(configStack, loadedConfig)
-	loadedConfig = env
-	runConfigChangeActions()
-}
-
-func pushCiConfig() error {
-	configStack = append(configStack, loadedConfig)
-	loadedConfig = ciConfig
-	runConfigChangeActions()
-	return nil
-}
-
-func pushEnvConfig(filename string) error {
+func setEnvConfig(filename string) error {
 	var d string
 	var err error
 	if filename == "" {
-		if d, err = FindEnvFile(".env.vault", true); err == nil {
-			if d == "" {
-				err = godotenvvault.Overload()
-			} else {
-				var c string
-				if c, err = os.Getwd(); err == nil {
-					if err = os.Chdir(d); err == nil {
-						err = godotenvvault.Overload()
-						// if we fail to change back to the prior working directory, so be it.
-						_ = os.Chdir(c)
-					}
-				}
-			}
-		}
+		err = godotenvvault.Overload()
 	} else {
-		if d, err = FindEnvFile(filename, false); err == nil {
+		if d, err = FindEnvFile(filename); err == nil {
 			err = godotenvvault.Overload(d + filename)
 		}
 	}
 	if err != nil {
-		return fmt.Errorf("error loading .env vars: %v", err)
+		return fmt.Errorf("error loading environment: %w", err)
 	}
-	configStack = append(configStack, loadedConfig)
 	getEnvPort := func(s string, d int) int {
 		val, _ := strconv.Atoi(s)
 		if val <= 0 {
+			// notest
 			return d
 		}
 		return val
@@ -158,7 +137,7 @@ func pushEnvConfig(filename string) error {
 		AwsAccessKey:     os.Getenv("AWS_ACCESS_KEY"),
 		AwsBucket:        os.Getenv("AWS_BUCKET"),
 		AwsRegion:        os.Getenv("AWS_REGION"),
-		AwsReportFolder:  os.Getenv("AWS_REPORT_FOLDER"),
+		AwsRootPath:      os.Getenv("AWS_FOLDER_PATH"),
 		AwsSecretKey:     os.Getenv("AWS_SECRET_KEY"),
 		DbKeyPrefix:      os.Getenv("DB_KEY_PREFIX"),
 		DbUrl:            os.Getenv("REDIS_URL"),
@@ -166,26 +145,16 @@ func pushEnvConfig(filename string) error {
 		HttpPort:         getEnvPort(os.Getenv("HTTP_PORT"), 8080),
 		HttpScheme:       os.Getenv("HTTP_SCHEME"),
 		Name:             os.Getenv("ENVIRONMENT_NAME"),
+		ResembleToken:    os.Getenv("RESEMBLE_TOKEN"),
 		SmtpCredId:       os.Getenv("SMTP_CRED_ID"),
 		SmtpCredSecret:   os.Getenv("SMTP_CRED_SECRET"),
 		SmtpHost:         os.Getenv("SMTP_HOST"),
 		SmtpPort:         getEnvPort(os.Getenv("SMTP_PORT"), 2025),
 	}
-	runConfigChangeActions()
 	return nil
 }
 
-func PopConfig() {
-	if len(configStack) == 0 {
-		return
-	}
-	loadedConfig = configStack[len(configStack)-1]
-	configStack = configStack[:len(configStack)-1]
-	runConfigChangeActions()
-	return
-}
-
-func FindEnvFile(name string, fallback bool) (string, error) {
+func FindEnvFile(name string) (string, error) {
 	for i := range 5 {
 		d := ""
 		for range i {
@@ -194,11 +163,6 @@ func FindEnvFile(name string, fallback bool) (string, error) {
 		if _, err := os.Stat(d + name); err == nil {
 			return d, nil
 		}
-		if fallback {
-			if _, err := os.Stat(d + ".env"); err == nil {
-				return d, nil
-			}
-		}
 	}
-	return "", fmt.Errorf("no file %q found in parent", name)
+	return "", fmt.Errorf("no file %q found in the current directory or four levels of parent", name)
 }
