@@ -4,4 +4,4 @@ This is the next-generation server for [the Whisper app](https://apps.apple.com/
 
 ## License
 
-All code and textual materials in this repository are copyright 2024 Daniel C. Brotsky, and licensed under the GNU Afero General Public License v3, which is reproduced in full in the [LICENSE](./LICENSE) file.
+All code and textual materials in this repository are copyright 2024-2026 Daniel C. Brotsky, and licensed under the GNU Afero General Public License v3, which is reproduced in full in the [LICENSE](./LICENSE) file.
