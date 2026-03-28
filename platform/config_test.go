@@ -8,54 +8,35 @@ package platform
 
 import (
 	"fmt"
+	"maps"
 	"os"
-	"path"
-	"path/filepath"
 	"slices"
 	"testing"
 )
 
 func TestGetConfig(t *testing.T) {
 	name := GetConfig().Name
-	fmt.Printf("Loaded configuration is %q\n", name)
-	known := []string{"CI", "development", "testing", "staging", "production"}
-	if !slices.Contains(known, name) {
-		t.Errorf("Initial configuration %q is not a known environment", name)
+	fmt.Printf("Testing configuration is %q\n", name)
+	if _, ok := knownEnvironments[name]; !ok {
+		t.Fatalf("Initial configuration %q is not a known environment", name)
 	}
 }
 
 func TestFindEnvFile(t *testing.T) {
-	if _, err := FindEnvFile(".env.no-such-environment-file"); err == nil {
-		t.Errorf("Didn't err when the env file didn't exist in a parent directory")
+	if os.Getenv("DOTENV_KEY") != "" {
+		t.Skip("Skipping search for environment files because DOTENV_KEY is set")
 	}
-	if d, err := FindEnvFile(".env.vault"); err != nil {
-		t.Errorf("Didn't find .env.vault in a parent directory")
-	} else {
-		if _, err := os.Stat(path.Join(d, "go.mod")); err != nil {
-			p, _ := filepath.Abs(d)
-			t.Errorf("Found .env.vault in a parent that doesn't have a 'go.mod' file: %s", p)
-		}
+	files := findEnvFiles()
+	if len(files) != 0 {
+		t.Errorf("Found environment files when none were specified: %q", files)
 	}
-}
-
-func TestSetVaultConfig(t *testing.T) {
-	d, err := FindEnvFile(".env.vault")
-	if err != nil {
-		t.Fatalf("Failed to find .env.vault in a parent directory")
+	names := slices.Collect(maps.Keys(knownEnvironments))
+	files = findEnvFiles(names...)
+	if len(files) != len(names) {
+		t.Errorf("Expected %d environment files, got %d: %v", len(names), len(files), files)
 	}
-	curdir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Failed to get the current working directory")
-	}
-	env := *GetConfig()
-	defer func() { loadedConfig = env }()
-	if err := os.Chdir(d); err != nil {
-		t.Fatalf("Failed to chdir into the parent directory")
-	}
-	if err := SetConfig(""); err != nil {
-		t.Errorf("Failed to load vault environment")
-	}
-	if err := os.Chdir(curdir); err != nil {
-		t.Fatalf("Failed to return to the original working directory")
+	files = findEnvFiles("foo", "bar", "baz")
+	if len(files) != 0 {
+		t.Errorf("Found environment files when invalid names were specified: %v", files)
 	}
 }
