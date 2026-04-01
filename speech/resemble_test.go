@@ -60,7 +60,7 @@ func TestResembleProfileVoice(t *testing.T) {
 		t.Skip("resemble token not set")
 		return
 	}
-	testVoice := resembleVoiceItem{"38a0b764", "Aaron"}
+	testVoice := resembleVoiceItem{"bee581c1", "Ethan", "en-US"}
 	profileId := platform.NewId("test-profile-")
 	if v := testRc.getProfileVoice(context.Background(), profileId); v != resembleDefaultVoiceItem {
 		t.Errorf("expected default voice, got %s", v.Uuid)
@@ -80,9 +80,12 @@ func TestResembleListVoices(t *testing.T) {
 	}
 	ctx := context.Background()
 	profileId := platform.NewId("test-profile-")
-	voices, err := testRc.listVoices(ctx, profileId)
+	voices, err := testRc.listVoices(ctx, profileId, "en", "american", "conversational", "casual", true)
 	if err != nil {
 		t.Fatal(err.Error())
+	}
+	if len(voices) != 14 {
+		t.Errorf("expected 14 voices, got %d", len(voices))
 	}
 	t.Logf("Found %d voices:", len(voices))
 	voiceIds := make(map[string]string, len(voices))

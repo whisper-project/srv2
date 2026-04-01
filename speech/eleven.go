@@ -211,7 +211,7 @@ type elevenVoiceInfoList struct {
 	NextPageToken string                `json:"next_page_token"`
 }
 
-func (ec *elevenCore) fetchVoices(ctx context.Context, profileId string,
+func (ec *elevenCore) listVoices(ctx context.Context, profileId string,
 	collectionId, kind, category string) ([]elevenVoiceInfoItem, error) {
 	var voices []elevenVoiceInfoItem
 	var nextPageToken string

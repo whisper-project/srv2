@@ -82,7 +82,7 @@ func TestElevenListVoices(t *testing.T) {
 	}
 	ctx := context.Background()
 	profileId := platform.NewId("test-profile-")
-	voices, err := testEc.fetchVoices(ctx, profileId, "", "default", "")
+	voices, err := testEc.listVoices(ctx, profileId, "", "default", "")
 	if err != nil {
 		t.Fatal(err.Error())
 	}

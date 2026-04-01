@@ -13,7 +13,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/whisper-project/whisper.server2/platform"
 	"go.uber.org/zap"
@@ -129,9 +132,22 @@ func (rc *resembleCore) validateApiToken(ctx context.Context, token string) bool
 	return response.Success
 }
 
-func (rc *resembleCore) listVoices(ctx context.Context, profileId string) ([]resembleVoiceItem, error) {
+func (rc *resembleCore) listVoices(ctx context.Context, profileId,
+	language, accent, use, tone string, free bool) ([]resembleVoiceItem, error) {
 	const endpoint = "https://app.resemble.ai/api/v2/voices"
-	const query = "?page=1&page_size=500"
+	var query = "?page=1&page_size=500"
+	if accent != "" {
+		query += "&accent=" + url.QueryEscape(accent)
+	}
+	if free {
+		query += "&pre_built_resemble_voice=true"
+	}
+	if use != "" {
+		query += "&use_case=" + url.QueryEscape(use)
+	}
+	if tone != "" {
+		query += "&tone_of_voice=" + url.QueryEscape(tone)
+	}
 	token := rc.getProfileToken(ctx, profileId)
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint+query, nil)
 	if err != nil {
@@ -155,8 +171,9 @@ func (rc *resembleCore) listVoices(ctx context.Context, profileId string) ([]res
 			zap.String("profileId", profileId), zap.Int("status", resp.StatusCode))
 		return nil, fmt.Errorf("failed to list voices: %s", resp.Status)
 	}
+	body, _ := io.ReadAll(resp.Body)
 	var response resembleListVoicesResponse
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&response); err != nil {
 		// notest
 		sLog().Error("failed to decode resemble voices",
 			zap.String("profileId", profileId), zap.Error(err))
@@ -168,7 +185,16 @@ func (rc *resembleCore) listVoices(ctx context.Context, profileId string) ([]res
 			zap.String("profileId", profileId))
 		return nil, fmt.Errorf("failed to list voices: %s", resp.Status)
 	}
-	items := response.Items
+	var items []resembleVoiceItem
+	if language == "" {
+		items = response.Items
+	} else {
+		for _, item := range response.Items {
+			if strings.HasPrefix(item.DefaultLanguage, language) {
+				items = append(items, item)
+			}
+		}
+	}
 	return items, nil
 }
 
@@ -222,8 +248,9 @@ type resembleListVoicesResponse struct {
 }
 
 type resembleVoiceItem struct {
-	Uuid string `json:"uuid"`
-	Name string `json:"name"`
+	Uuid            string `json:"uuid"`
+	Name            string `json:"name"`
+	DefaultLanguage string `json:"default_language"`
 }
 
 func (r *resembleVoiceItem) Marshal() string {
