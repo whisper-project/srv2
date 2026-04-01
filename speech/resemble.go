@@ -19,6 +19,15 @@ import (
 	"go.uber.org/zap"
 )
 
+var resembleManagerInstance *Manager
+
+func GetResembleManager() *Manager {
+	if resembleManagerInstance == nil {
+		resembleManagerInstance = newManager("resemble", 300, getResembleCore())
+	}
+	return resembleManagerInstance
+}
+
 type resembleCore struct {
 	profileTokens platform.StorableMap
 	profileVoices platform.StorableMap
@@ -36,6 +45,19 @@ func getResembleCore() *resembleCore {
 	return resembleCoreInstance
 }
 
+func (rc *resembleCore) getProfileToken(ctx context.Context, profileId string) string {
+	token, err := platform.GetMapValue(ctx, rc.profileTokens, profileId)
+	if token == "" {
+		if err != nil {
+			// notest
+			sLog().Error("storage failure (get) on Resemble profile token",
+				zap.String("profileId", profileId), zap.Error(err))
+		}
+		return platform.GetConfig().ResembleToken
+	}
+	return token
+}
+
 func (rc *resembleCore) registerProfileToken(ctx context.Context, profileId, token string) error {
 	if !rc.validateApiToken(ctx, token) {
 		sLog().Error("failed to validate the token", zap.String("profileId", profileId))
@@ -50,20 +72,7 @@ func (rc *resembleCore) registerProfileToken(ctx context.Context, profileId, tok
 	return nil
 }
 
-func (rc *resembleCore) getProfileToken(ctx context.Context, profileId string) string {
-	token, err := platform.GetMapValue(ctx, rc.profileTokens, profileId)
-	if token == "" {
-		if err != nil {
-			// notest
-			sLog().Error("storage failure (get) on Resemble profile token",
-				zap.String("profileId", profileId), zap.Error(err))
-		}
-		return platform.GetConfig().ResembleToken
-	}
-	return token
-}
-
-func (rc *resembleCore) registerProfileVoice(ctx context.Context, profileId string, voice *resembleVoice) error {
+func (rc *resembleCore) registerProfileVoice(ctx context.Context, profileId string, voice *resembleVoiceItem) error {
 	if err := platform.SetMapValue(ctx, rc.profileVoices, profileId, voice.Marshal()); err != nil {
 		// notest
 		sLog().Error("storage failure (set) on Resemble profile voice",
@@ -73,7 +82,7 @@ func (rc *resembleCore) registerProfileVoice(ctx context.Context, profileId stri
 	return nil
 }
 
-func (rc *resembleCore) getProfileVoice(ctx context.Context, profileId string) resembleVoice {
+func (rc *resembleCore) getProfileVoice(ctx context.Context, profileId string) *resembleVoiceItem {
 	s, err := platform.GetMapValue(ctx, rc.profileVoices, profileId)
 	if err != nil {
 		// notest
@@ -81,12 +90,12 @@ func (rc *resembleCore) getProfileVoice(ctx context.Context, profileId string) r
 			zap.String("profileId", profileId), zap.Error(err))
 		return resembleDefaultVoiceItem
 	}
-	var voice resembleVoice
+	var voice resembleVoiceItem
 	voice.Unmarshal(s)
 	if voice.Uuid == "" {
 		return resembleDefaultVoiceItem
 	}
-	return voice
+	return &voice
 }
 
 func (rc *resembleCore) validateApiToken(ctx context.Context, token string) bool {
@@ -120,7 +129,7 @@ func (rc *resembleCore) validateApiToken(ctx context.Context, token string) bool
 	return response.Success
 }
 
-func (rc *resembleCore) listVoices(ctx context.Context, profileId string) ([]resembleVoice, error) {
+func (rc *resembleCore) listVoices(ctx context.Context, profileId string) ([]resembleVoiceItem, error) {
 	const endpoint = "https://app.resemble.ai/api/v2/voices"
 	const query = "?page=1&page_size=500"
 	token := rc.getProfileToken(ctx, profileId)
@@ -163,7 +172,7 @@ func (rc *resembleCore) listVoices(ctx context.Context, profileId string) ([]res
 	return items, nil
 }
 
-func (rc *resembleCore) textToSpeech(ctx context.Context, profileId, text string) ([]byte, error) {
+func (rc *resembleCore) TextToSpeech(ctx context.Context, profileId, text string) ([]byte, error) {
 	const endpoint = "https://f.cluster.resemble.ai/synthesize"
 	token := rc.getProfileToken(context.Background(), profileId)
 	voice := rc.getProfileVoice(context.Background(), profileId)
@@ -208,25 +217,25 @@ type resembleGenericResponse struct {
 }
 
 type resembleListVoicesResponse struct {
-	Success bool            `json:"success"`
-	Items   []resembleVoice `json:"items"`
+	Success bool                `json:"success"`
+	Items   []resembleVoiceItem `json:"items"`
 }
 
-type resembleVoice struct {
+type resembleVoiceItem struct {
 	Uuid string `json:"uuid"`
 	Name string `json:"name"`
 }
 
-func (r *resembleVoice) Marshal() string {
+func (r *resembleVoiceItem) Marshal() string {
 	b, _ := json.Marshal(r)
 	return string(b)
 }
 
-func (r *resembleVoice) Unmarshal(s string) {
+func (r *resembleVoiceItem) Unmarshal(s string) {
 	_ = json.Unmarshal([]byte(s), r)
 }
 
-var resembleDefaultVoiceItem = resembleVoice{
+var resembleDefaultVoiceItem = &resembleVoiceItem{
 	Uuid: "55592656",
 	Name: "Ember",
 }

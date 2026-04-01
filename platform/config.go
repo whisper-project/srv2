@@ -47,6 +47,7 @@ type Environment struct {
 	DbEnvPrefix           string
 	DbProjectPrefix       string
 	DbUrl                 string
+	ElevenLabsApiKey      string
 	HttpHost              string
 	HttpPort              int
 	HttpScheme            string
@@ -87,6 +88,7 @@ func (env *Environment) loadEnvConfig(envNames ...string) error {
 		DbEnvPrefix:           os.Getenv("DB_ENV_PREFIX"),
 		DbProjectPrefix:       os.Getenv("DB_PROJECT_PREFIX"),
 		DbUrl:                 os.Getenv("DB_URL"),
+		ElevenLabsApiKey:      os.Getenv("ELEVENLABS_API_KEY"),
 		HttpHost:              os.Getenv("HTTP_HOST"),
 		HttpPort:              getEnvPort(os.Getenv("HTTP_PORT"), 8080),
 		HttpScheme:            os.Getenv("HTTP_SCHEME"),
